@@ -8,6 +8,11 @@
 # Keep example files
 !.env.example
 
+# ─── Firebase ─────────────────────────────────────────────────────────────────
+firebase.json
+.firebaserc
+firebase-debug.log
+
 # ─── Go ───────────────────────────────────────────────────────────────────────
 # Compiled binaries and executables
 backend/bin/
