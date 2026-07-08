@@ -1,1 +1,1 @@
-Ai Finance Tracker
+Ai Finance Tracker anounce
