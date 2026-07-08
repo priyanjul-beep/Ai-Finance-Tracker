@@ -125,10 +125,12 @@ func main() {
 	budgetUC := usecase.NewBudget(budgetRepo, expenseRepo, queueClient, auditRepo)
 	subscriptionUC := usecase.NewSubscription(subRepo, auditRepo, redisCache)
 	goalUC := usecase.NewGoal(goalRepo, auditRepo, redisCache)
-	tagUC := usecase.NewTag(tagRepo)
+	tagUC  := usecase.NewTag(tagRepo)
+	userUC := usecase.NewUser(userRepo)
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
 	authH      := handler.NewAuth(authUC)
+	userH      := handler.NewUserHandler(userUC)
 	expenseH   := handler.NewExpenseHandler(expenseUC)
 	analyticsH := handler.NewAnalyticsHandler(analyticsUC)
 	incomeH     := handler.NewIncomeHandler(incomeUC)
@@ -192,6 +194,9 @@ func main() {
 	protected.Use(middleware.Auth(cfg.JWTSecret))
 	{
 		// User profile
+		protected.GET("/user/profile", userH.GetProfile)
+		protected.PUT("/user/profile", userH.UpdateProfile)
+
 		users := protected.Group("/users")
 		{
 			users.POST("/logout",          authH.Logout)

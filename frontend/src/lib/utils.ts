@@ -51,8 +51,9 @@ export function formatMonth(month: number, year: number): string {
 }
 
 // ─── Number formatting ───────────────────────────────────────────────────────
-export function formatPercent(value: number, decimals = 1): string {
-  return `${value.toFixed(decimals)}%`;
+export function formatPercent(value: number | null | undefined, decimals = 1): string {
+  if (value == null || isNaN(Number(value))) return `0.${"0".repeat(decimals)}%`;
+  return `${Number(value).toFixed(decimals)}%`;
 }
 
 export function formatNumber(value: number): string {

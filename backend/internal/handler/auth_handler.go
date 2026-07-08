@@ -196,3 +196,40 @@ func (h *AuthHandler) GoogleOAuthCallback(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+// ─── User Profile Handler ─────────────────────────────────────────────────────
+
+// UserHandler exposes user profile endpoints.
+type UserHandler struct {
+	svc interfaces.UserService
+}
+
+// NewUserHandler creates a new UserHandler.
+func NewUserHandler(svc interfaces.UserService) *UserHandler { return &UserHandler{svc: svc} }
+
+// GetProfile returns the authenticated user's profile.
+func (h *UserHandler) GetProfile(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+	profile, err := h.svc.GetProfile(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Code: "NOT_FOUND", Message: err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, profile)
+}
+
+// UpdateProfile updates mutable profile fields.
+func (h *UserHandler) UpdateProfile(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+	var req dto.UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Code: "INVALID_REQUEST", Message: err.Error()})
+		return
+	}
+	profile, err := h.svc.UpdateProfile(c.Request.Context(), userID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Code: "UPDATE_FAILED", Message: err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, profile)
+}
