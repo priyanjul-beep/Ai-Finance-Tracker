@@ -397,7 +397,7 @@ func (h *TagHandler) List(c *gin.Context) {
 // @Router       /expenses/{expense_id}/tags/{tag_id} [post]
 func (h *TagHandler) AddToExpense(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
-	if err := h.uc.AddToExpense(c.Request.Context(), userID, c.Param("expense_id"), c.Param("tag_id")); err != nil {
+	if err := h.uc.AddToExpense(c.Request.Context(), userID, c.Param("id"), c.Param("tag_id")); err != nil {
 		abortNotFound(c, "tag or expense not found")
 		return
 	}
@@ -414,7 +414,7 @@ func (h *TagHandler) AddToExpense(c *gin.Context) {
 // @Router       /expenses/{expense_id}/tags/{tag_id} [delete]
 func (h *TagHandler) RemoveFromExpense(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
-	if err := h.uc.RemoveFromExpense(c.Request.Context(), userID, c.Param("expense_id"), c.Param("tag_id")); err != nil {
+	if err := h.uc.RemoveFromExpense(c.Request.Context(), userID, c.Param("id"), c.Param("tag_id")); err != nil {
 		abortNotFound(c, "tag or expense not found")
 		return
 	}

@@ -17,8 +17,9 @@ import (
 // Connect opens a connection to PostgreSQL, runs auto-migration,
 // and returns the *gorm.DB instance.
 func Connect(dsn string) (*gorm.DB, error) {
+	// Use Warn level for runtime: only slow queries (>200 ms) and errors are printed.
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("database: open: %w", err)
@@ -33,7 +34,9 @@ func Connect(dsn string) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
 
-	if err := autoMigrate(db); err != nil {
+	// Run migrations on a silent session so the hundreds of pg_catalog
+	// schema-inspection queries that AutoMigrate emits do not flood stdout.
+	if err := autoMigrate(db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})); err != nil {
 		return nil, err
 	}
 

@@ -271,9 +271,9 @@ func main() {
 			tags.PUT("/:id",   tagH.Update)
 			tags.DELETE("/:id", tagH.Delete)
 		}
-		// Expense–tag associations
-		expenses.POST("/:expense_id/tags/:tag_id",    tagH.AddToExpense)
-		expenses.DELETE("/:expense_id/tags/:tag_id",  tagH.RemoveFromExpense)
+		// Expense–tag associations (use :id to match the expenses group wildcard)
+		protected.POST("/expenses/:id/tags/:tag_id",   tagH.AddToExpense)
+		protected.DELETE("/expenses/:id/tags/:tag_id", tagH.RemoveFromExpense)
 
 		// Notifications
 		notifs := protected.Group("/notifications")
