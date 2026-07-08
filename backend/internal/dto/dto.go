@@ -329,17 +329,18 @@ type NotificationDTO struct {
 // ─── Analytics / Dashboard ────────────────────────────────────────────────────
 
 type DashboardDTO struct {
-	CurrentBalance       float64            `json:"current_balance"`
+	CurrentBalance       float64            `json:"total_balance"`
 	TotalIncome          float64            `json:"total_income"`
-	TotalExpense         float64            `json:"total_expense"`
+	TotalExpense         float64            `json:"total_expenses"`
 	TotalSavings         float64            `json:"total_savings"`
-	MonthlySpending      float64            `json:"monthly_spending"`
-	WeeklySpending       float64            `json:"weekly_spending"`
+	SavingsRate          float64            `json:"savings_rate"`
+	MonthlySpending      float64            `json:"monthly_spend"`
+	WeeklySpending       float64            `json:"weekly_spend"`
 	FinancialHealthScore float64            `json:"financial_health_score"`
-	CategoryBreakdown    []CategorySpend    `json:"category_breakdown"`
+	CategoryBreakdown    []CategorySpend    `json:"spend_by_category"`
 	RecentExpenses       []ExpenseDTO       `json:"recent_expenses"`
-	UpcomingBills        []SubscriptionDTO  `json:"upcoming_bills"`
-	TopMerchants         []MerchantSpend    `json:"top_merchants"`
+	UpcomingBills        []SubscriptionDTO  `json:"upcoming_subscriptions"`
+	TopMerchants         []MerchantSpend    `json:"spend_by_merchant"`
 	Predictions          PredictionData     `json:"predictions"`
 }
 
@@ -357,10 +358,13 @@ type MerchantSpend struct {
 }
 
 type PredictionData struct {
-	EndOfMonthSpending float64 `json:"end_of_month_spending"`
-	ExpectedSavings    float64 `json:"expected_savings"`
-	BudgetOverrunRisk  float64 `json:"budget_overrun_risk"` // 0-100
-	SavingsGoalOnTrack bool    `json:"savings_goal_on_track"`
+	EndOfMonthSpending  float64 `json:"end_of_month_spending"`
+	NextMonthPrediction float64 `json:"next_month_prediction"` // alias shown in dashboard
+	Confidence          float64 `json:"confidence"`            // 0.0-1.0
+	Trend               string  `json:"trend"`                 // increasing|decreasing|stable
+	ExpectedSavings     float64 `json:"expected_savings"`
+	BudgetOverrunRisk   float64 `json:"budget_overrun_risk"` // 0-100
+	SavingsGoalOnTrack  bool    `json:"savings_goal_on_track"`
 }
 
 type MonthlyReportDTO struct {

@@ -82,16 +82,36 @@ func (uc *AnalyticsUseCase) GetDashboard(ctx context.Context, userID string) (*d
 		healthScoreVal = hs.Score
 	}
 
-	// AI predictions
+	// Savings rate
+	savingsRate := 0.0
+	if totalIncome > 0 {
+		savingsRate = ((totalIncome - totalExpense) / totalIncome) * 100
+	}
+
+	// AI predictions (graceful degradation: never 500 on AI failure)
 	predData := map[string]interface{}{
-		"total_expense":   totalExpense,
-		"total_income":    totalIncome,
-		"days_in_month":   now.Day(),
-		"days_remaining":  daysRemaining(now),
+		"total_expense":  totalExpense,
+		"total_income":   totalIncome,
+		"days_in_month":  now.Day(),
+		"days_remaining": daysRemaining(now),
 	}
 	predictions, _ := uc.ai.PredictExpenses(ctx, predData)
 	if predictions == nil {
 		predictions = &dto.PredictionData{}
+	}
+	// Populate frontend-expected aliases
+	predictions.NextMonthPrediction = predictions.EndOfMonthSpending
+	predictions.Confidence = (100 - predictions.BudgetOverrunRisk) / 100
+	if predictions.Confidence <= 0 {
+		predictions.Confidence = 0.75 // sensible default when AI unavailable
+	}
+	switch {
+	case totalExpense > totalIncome*0.85:
+		predictions.Trend = "increasing"
+	case totalExpense < totalIncome*0.5:
+		predictions.Trend = "decreasing"
+	default:
+		predictions.Trend = "stable"
 	}
 
 	dashboard := &dto.DashboardDTO{
@@ -99,6 +119,7 @@ func (uc *AnalyticsUseCase) GetDashboard(ctx context.Context, userID string) (*d
 		TotalIncome:          totalIncome,
 		TotalExpense:         totalExpense,
 		TotalSavings:         totalIncome - totalExpense,
+		SavingsRate:          savingsRate,
 		MonthlySpending:      totalExpense,
 		WeeklySpending:       weeklySpend,
 		FinancialHealthScore: healthScoreVal,
@@ -215,7 +236,12 @@ func (uc *AnalyticsUseCase) GetInsights(ctx context.Context, userID string) ([]s
 		"total_income":  totalIncome,
 		"categories":    categories,
 	}
-	return uc.ai.GenerateInsights(ctx, data)
+	insights, err := uc.ai.GenerateInsights(ctx, data)
+	if err != nil || insights == nil {
+		// Graceful degradation: return empty list instead of 500
+		return []string{}, nil
+	}
+	return insights, nil
 }
 
 // GetFinancialHealthScore retrieves (or computes) the user's health score.
