@@ -20,13 +20,17 @@ type GeminiProvider struct {
 }
 
 // NewGeminiProvider creates an authenticated Gemini client.
-func NewGeminiProvider(apiKey string) (*GeminiProvider, error) {
+// model defaults to "gemini-2.0-flash" when empty.
+func NewGeminiProvider(apiKey, model string) (*GeminiProvider, error) {
+	if model == "" {
+		model = "gemini-2.0-flash"
+	}
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, fmt.Errorf("gemini: new client: %w", err)
 	}
-	return &GeminiProvider{client: client, model: "gemini-1.5-flash"}, nil
+	return &GeminiProvider{client: client, model: model}, nil
 }
 
 // Close releases the Gemini client resources.
@@ -188,6 +192,68 @@ Return ONLY valid JSON: {"score": <0-100>}`, string(jsonData))
 		return 0, fmt.Errorf("gemini: parse health score: %w", err)
 	}
 	return result.Score, nil
+}
+
+// ParseExpenseFromAudio sends audio bytes to Gemini (multimodal) and returns
+// a fully parsed expense including the transcript. Gemini 1.5-flash can
+// process audio inline up to ~9.5 MB without uploading to Files API.
+func (g *GeminiProvider) ParseExpenseFromAudio(ctx context.Context, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error) {
+	if len(audioData) == 0 {
+		return nil, fmt.Errorf("gemini: empty audio data")
+	}
+
+	prompt := genai.Text(`You are an expert financial assistant. Listen to this audio and extract expense details.
+
+Return ONLY valid JSON (no markdown fences, no explanation) with these exact keys:
+{
+  "transcript": "<verbatim words spoken>",
+  "amount": <number or null>,
+  "merchant": "<merchant/vendor/payee name or null>",
+  "category": "<one of: food|travel|shopping|entertainment|health|investment|education|bills|recharge|fuel|rent|salary|utilities|subscription|personal_care|gift|others|unknown or null>",
+  "date": "<today|yesterday|YYYY-MM-DD — use 'today' if not mentioned>",
+  "notes": "<any extra context, empty string if none>",
+  "expense_type": "<spend|refund|transfer — default 'spend'>",
+  "payment_method": "<cash|card|upi|bank|wallet|online or null>",
+  "confidence": <0.0-1.0>
+}
+
+Inference rules:
+- "Swiggy", "Zomato", "restaurant", "lunch", "dinner" → food
+- "Uber", "Ola", "petrol", "fuel", "auto", "bus", "metro" → travel/fuel
+- "Amazon", "Flipkart", "shoes", "clothes", "shopping" → shopping
+- "Netflix", "Spotify", "subscription" → subscription
+- "doctor", "hospital", "medicine", "pharmacy" → health
+- "electricity", "water bill", "internet", "phone bill" → bills
+- "rent", "house", "flat" → rent
+- "salary", "credited" → salary
+- "college", "school", "fees", "course" → education
+- Return null only for fields that cannot be inferred at all`)
+
+	audioPart := genai.Blob{
+		MIMEType: mimeType,
+		Data:     audioData,
+	}
+
+	model := g.client.GenerativeModel(g.model)
+	resp, err := model.GenerateContent(ctx, prompt, audioPart)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: voice parse generate: %w", err)
+	}
+	if len(resp.Candidates) == 0 {
+		return nil, fmt.Errorf("gemini: voice parse: no candidates")
+	}
+
+	var sb strings.Builder
+	for _, part := range resp.Candidates[0].Content.Parts {
+		sb.WriteString(fmt.Sprintf("%v", part))
+	}
+	raw := cleanJSON(sb.String())
+
+	var result dto.AIVoiceParseResponse
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		return nil, fmt.Errorf("gemini: voice parse unmarshal: %w (raw=%s)", err, raw)
+	}
+	return &result, nil
 }
 
 // ─── internal helpers ─────────────────────────────────────────────────────────

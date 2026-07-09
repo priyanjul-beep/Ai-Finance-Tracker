@@ -1,10 +1,10 @@
-// Package handler – expense, income, budget, subscription, goal, tag, analytics,
-// notification handlers.
 package handler
 
 import (
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -93,6 +93,56 @@ func (h *ExpenseHandler) Parse(c *gin.Context) {
 		abortServerError(c, err.Error())
 		return
 	}
+	c.JSON(http.StatusOK, result)
+}
+
+// VoiceParse accepts a multipart/form-data audio file, sends it to Gemini
+// for multimodal transcription + expense extraction, and returns structured JSON.
+func (h *ExpenseHandler) VoiceParse(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	// Read audio from multipart upload
+	file, header, err := c.Request.FormFile("audio")
+	if err != nil {
+		abortBadRequest(c, "audio file is required")
+		return
+	}
+	defer file.Close()
+
+	// 10 MB limit
+	const maxSize = 10 << 20
+	if header.Size > maxSize {
+		abortBadRequest(c, "audio file too large (max 10 MB)")
+		return
+	}
+
+	audioData, err := io.ReadAll(file)
+	if err != nil {
+		abortServerError(c, "failed to read audio file")
+		return
+	}
+	if len(audioData) < 512 {
+		abortBadRequest(c, "audio recording is too short")
+		return
+	}
+
+	// Detect MIME type from Content-Type header; fall back to webm
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = "audio/webm"
+	}
+	// Strip codec/parameter suffix — Gemini only accepts bare MIME types
+	// e.g. "audio/webm;codecs=opus" → "audio/webm"
+	if idx := strings.Index(mimeType, ";"); idx != -1 {
+		mimeType = strings.TrimSpace(mimeType[:idx])
+	}
+
+	result, err := h.svc.ParseFromVoice(c.Request.Context(), userID, audioData, mimeType)
+	if err != nil {
+		abortServerError(c, "voice parsing failed: "+err.Error())
+		return
+	}
+
 	c.JSON(http.StatusOK, result)
 }
 

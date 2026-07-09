@@ -66,7 +66,7 @@ func main() {
 	defer queueClient.Close()
 
 	// ── AI Provider ───────────────────────────────────────────────────────────
-	gemini, err := pkgAI.NewGeminiProvider(cfg.GeminiAPIKey)
+	gemini, err := pkgAI.NewGeminiProvider(cfg.GeminiAPIKey, cfg.GeminiModel)
 	if err != nil {
 		appLog.Fatal("gemini init failed", "error", err)
 	}
@@ -213,6 +213,7 @@ func main() {
 			expenses.PUT("/:id",           expenseH.Update)
 			expenses.DELETE("/:id",        expenseH.Delete)
 			expenses.POST("/parse",        expenseH.Parse)
+			expenses.POST("/voice-parse",  expenseH.VoiceParse)
 			expenses.GET("/:id/duplicates", expenseH.GetDuplicates)
 		}
 

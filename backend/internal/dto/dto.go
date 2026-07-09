@@ -127,6 +127,22 @@ type AIExpenseParseResponse struct {
 	Confidence    float64   `json:"confidence"` // 0-1
 }
 
+// AIVoiceParseResponse is returned by the voice-parse endpoint.
+// DateStr is a raw string ("today", "yesterday", "2026-07-10") so the
+// frontend can resolve it relative to the user's local clock.
+type AIVoiceParseResponse struct {
+	Transcript    string  `json:"transcript"`
+	Amount        float64 `json:"amount"`
+	Merchant      string  `json:"merchant"`
+	Category      string  `json:"category"`
+	DateStr       string  `json:"date"`
+	Notes         string  `json:"notes"`
+	ExpenseType   string  `json:"expense_type"`
+	PaymentMethod string  `json:"payment_method"`
+	Confidence    float64 `json:"confidence"`
+	Cached        bool    `json:"cached"`
+}
+
 // ─── Income ───────────────────────────────────────────────────────────────────
 
 type CreateIncomeRequest struct {
