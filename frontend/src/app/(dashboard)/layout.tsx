@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -14,14 +15,27 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, _hasHydrated } = useAuthStore();
   const { sidebarOpen } = useAppStore();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Only redirect after Zustand has finished reading from localStorage.
+    // Without this guard, a page refresh briefly sees isAuthenticated=false
+    // (before hydration) and wrongly sends the user to /login.
+    if (_hasHydrated && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [_hasHydrated, isAuthenticated, router]);
+
+  // Still hydrating – show a full-screen spinner so there's no flash of
+  // the login redirect or a blank page.
+  if (!_hasHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) return null;
 
