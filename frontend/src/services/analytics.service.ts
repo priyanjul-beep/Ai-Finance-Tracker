@@ -19,7 +19,7 @@ export const analyticsService = {
     month: number
   ): Promise<MonthlyReport> => {
     const res = await api.get<MonthlyReport>(
-      `/analytics/monthly?year=${year}&month=${month}`
+      `/analytics/monthly/${month}/${year}`
     );
     return res.data;
   },

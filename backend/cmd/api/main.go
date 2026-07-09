@@ -224,6 +224,7 @@ func main() {
 			analytics.GET("/predictions",            analyticsH.Predictions)
 			analytics.GET("/monthly/:month/:year",   analyticsH.MonthlyReport)
 			analytics.GET("/yearly/:year",           analyticsH.YearlyReport)
+			analytics.GET("/health-score",           analyticsH.HealthScore)
 		}
 
 		// Income

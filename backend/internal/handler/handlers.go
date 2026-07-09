@@ -325,6 +325,26 @@ func (h *AnalyticsHandler) Insights(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"insights": result})
 }
 
+func (h *AnalyticsHandler) HealthScore(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+	result, err := h.svc.GetFinancialHealthScore(c.Request.Context(), userID)
+	if err != nil || result == nil {
+		// No health score computed yet – return sensible zeros
+		c.JSON(http.StatusOK, gin.H{
+			"score":               0,
+			"income_score":        0,
+			"savings_score":       0,
+			"expense_ratio":       0,
+			"budget_health":       0,
+			"debt_health":         0,
+			"subscription_health": 0,
+			"insights":            []string{},
+		})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 func abortBadRequest(c *gin.Context, msg string) {
