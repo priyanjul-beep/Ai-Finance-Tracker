@@ -52,7 +52,7 @@ export function Header({ title }: HeaderProps) {
           <Bell className="h-4 w-4" />
           {/* Unread badge */}
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
-            3
+            0
           </span>
         </Link>
 
