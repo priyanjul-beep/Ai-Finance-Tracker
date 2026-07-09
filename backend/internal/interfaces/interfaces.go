@@ -180,6 +180,7 @@ type ExpenseService interface {
 	Update(ctx context.Context, userID, id string, req dto.UpdateExpenseRequest) (*dto.ExpenseDTO, error)
 	Delete(ctx context.Context, userID, id string) error
 	ParseFromText(ctx context.Context, userID string, req dto.AIExpenseParseRequest) (*dto.AIExpenseParseResponse, error)
+	ParseFromVoice(ctx context.Context, userID string, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error)
 	Search(ctx context.Context, userID, query string) ([]dto.ExpenseDTO, error)
 	GetDuplicates(ctx context.Context, userID, id string) ([]dto.ExpenseDTO, error)
 }
@@ -220,6 +221,7 @@ type AnalyticsService interface {
 // AIProvider is the pluggable AI backend (Gemini, OpenAI, Claude, etc.).
 type AIProvider interface {
 	ParseExpense(ctx context.Context, text, imageURL string) (*dto.AIExpenseParseResponse, error)
+	ParseExpenseFromAudio(ctx context.Context, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error)
 	CategorizeExpense(ctx context.Context, merchant, description string) (string, error)
 	GenerateSummary(ctx context.Context, data string, summaryType string) (string, error)
 	GenerateInsights(ctx context.Context, data map[string]interface{}) ([]string, error)
@@ -239,6 +241,9 @@ type CacheService interface {
 	GetDashboard(ctx context.Context, userID string, dest interface{}) error
 	SetDashboard(ctx context.Context, userID string, data interface{}) error
 	InvalidateUser(ctx context.Context, userID string) error
+	// Voice-parse cache: keyed by SHA-256 hash of raw audio bytes (24h TTL).
+	GetVoiceCache(ctx context.Context, hash string, dest interface{}) error
+	SetVoiceCache(ctx context.Context, hash string, data interface{}) error
 }
 
 // QueueService enqueues background jobs via Asynq.

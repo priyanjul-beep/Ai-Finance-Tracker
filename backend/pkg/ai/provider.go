@@ -32,6 +32,10 @@ type Provider interface {
 
 	// CalcHealthScore returns a 0-100 financial health score.
 	CalcHealthScore(ctx context.Context, data map[string]interface{}) (float64, error)
+
+	// ParseExpenseFromAudio transcribes audio and extracts structured expense
+	// data in a single Gemini call (multimodal: audio + prompt).
+	ParseExpenseFromAudio(ctx context.Context, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error)
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────────

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Mic } from "lucide-react";
 import Link from "next/link";
 import { useCreateExpense } from "@/hooks/useExpenses";
-import type { CreateExpenseRequest } from "@/types";
+import { VoiceExpenseModal } from "@/components/expenses/VoiceExpenseModal";
+import type { CreateExpenseRequest, AIVoiceParseResponse } from "@/types";
 
 const CATEGORIES = [
   "Food & Dining",
@@ -32,13 +33,60 @@ const PAYMENT_METHODS: { label: string; value: string }[] = [
   { label: "Online", value: "online" },
 ];
 
+/** Map Gemini category tokens → form select options */
+const AI_CATEGORY_MAP: Record<string, string> = {
+  food:          "Food & Dining",
+  travel:        "Travel",
+  shopping:      "Shopping",
+  entertainment: "Entertainment",
+  health:        "Healthcare",
+  investment:    "Other",
+  education:     "Education",
+  bills:         "Utilities",
+  recharge:      "Utilities",
+  fuel:          "Transportation",
+  rent:          "Housing",
+  salary:        "Other",
+  utilities:     "Utilities",
+  subscription:  "Subscriptions",
+  personal_care: "Personal Care",
+  gift:          "Other",
+  charitable:    "Other",
+  insurance:     "Other",
+  others:        "Other",
+  unknown:       "Other",
+  transportation:"Transportation",
+  transport:     "Transportation",
+};
+
+/** Resolve "today" / "yesterday" relative date strings → YYYY-MM-DD */
+function resolveDateString(raw: string): string {
+  if (!raw) return new Date().toISOString().split("T")[0];
+  const lower = raw.toLowerCase().trim();
+  if (lower === "today")     return new Date().toISOString().split("T")[0];
+  if (lower === "yesterday") {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  }
+  // Try to parse ISO or other formats
+  try {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+  } catch {}
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function NewExpensePage() {
   const router = useRouter();
   const { mutate: createExpense, isPending } = useCreateExpense();
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [autoFillBanner, setAutoFillBanner] = useState(false);
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<CreateExpenseRequest>({
     defaultValues: {
@@ -47,6 +95,28 @@ export default function NewExpensePage() {
       expense_type: "spend",
     },
   });
+
+  /** Called by VoiceExpenseModal when parsing succeeds — auto-fills every field */
+  const handleAutoFill = useCallback(
+    (result: AIVoiceParseResponse) => {
+      if (result.amount)         setValue("amount",         result.amount);
+      if (result.merchant)       setValue("merchant",       result.merchant);
+      if (result.notes)          setValue("notes",          result.notes);
+      if (result.expense_type)   setValue("expense_type",   result.expense_type as CreateExpenseRequest["expense_type"]);
+      if (result.payment_method) setValue("payment_method", result.payment_method);
+
+      // Resolve AI category token → human-readable form option
+      const cat = AI_CATEGORY_MAP[result.category?.toLowerCase?.() ?? ""] ?? "Other";
+      setValue("category", cat);
+
+      // Resolve relative date → YYYY-MM-DD
+      setValue("date", resolveDateString(result.date));
+
+      setAutoFillBanner(true);
+      setTimeout(() => setAutoFillBanner(false), 5_000);
+    },
+    [setValue]
+  );
 
   const onSubmit = (data: CreateExpenseRequest) => {
     createExpense(
@@ -70,13 +140,31 @@ export default function NewExpensePage() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold">Add Expense</h1>
           <p className="text-xs text-muted-foreground">
             Fill in the details below to record a new expense
           </p>
         </div>
+
+        {/* Voice button */}
+        <button
+          type="button"
+          onClick={() => setVoiceOpen(true)}
+          className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+        >
+          <Mic className="h-4 w-4" />
+          <span className="hidden sm:inline">Voice Input</span>
+        </button>
       </div>
+
+      {/* Auto-fill success banner */}
+      {autoFillBanner && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-400">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          Form auto-filled from voice input — review and save.
+        </div>
+      )}
 
       {/* Form card */}
       <form
@@ -242,6 +330,13 @@ export default function NewExpensePage() {
           </button>
         </div>
       </form>
+
+      {/* Voice expense modal */}
+      <VoiceExpenseModal
+        open={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onAutoFill={handleAutoFill}
+      />
     </div>
   );
 }

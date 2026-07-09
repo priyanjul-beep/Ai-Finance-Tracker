@@ -213,6 +213,7 @@ func main() {
 			expenses.PUT("/:id",           expenseH.Update)
 			expenses.DELETE("/:id",        expenseH.Delete)
 			expenses.POST("/parse",        expenseH.Parse)
+			expenses.POST("/voice-parse",  expenseH.VoiceParse)
 			expenses.GET("/:id/duplicates", expenseH.GetDuplicates)
 		}
 

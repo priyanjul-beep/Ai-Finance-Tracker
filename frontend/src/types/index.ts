@@ -120,6 +120,21 @@ export interface AIExpenseParsed {
   confidence: number;
 }
 
+/** Mirrors backend dto.AIVoiceParseResponse */
+export interface AIVoiceParseResponse {
+  transcript: string;
+  amount: number;
+  merchant: string;
+  category: string;
+  /** Raw string: "today" | "yesterday" | "YYYY-MM-DD" */
+  date: string;
+  notes: string;
+  expense_type: string;
+  payment_method: string;
+  confidence: number;
+  cached: boolean;
+}
+
 // ─── Income ──────────────────────────────────────────────────────────────────
 
 export interface Income {

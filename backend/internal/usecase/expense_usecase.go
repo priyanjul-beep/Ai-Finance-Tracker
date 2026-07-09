@@ -1,8 +1,8 @@
-// Package usecase – expense business logic.
 package usecase
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -207,6 +207,33 @@ func (uc *ExpenseUseCase) Delete(ctx context.Context, userID, id string) error {
 // ParseFromText calls the AI provider to extract expense fields from text.
 func (uc *ExpenseUseCase) ParseFromText(ctx context.Context, _ string, req dto.AIExpenseParseRequest) (*dto.AIExpenseParseResponse, error) {
 	return uc.ai.ParseExpense(ctx, req.Text, req.ImageURL)
+}
+
+// ParseFromVoice transcribes audio and extracts expense data via Gemini
+// multimodal processing. Results are cached by SHA-256 of the raw audio bytes
+// so identical recordings hit Redis instead of the AI API.
+func (uc *ExpenseUseCase) ParseFromVoice(ctx context.Context, _ string, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error) {
+	// Build cache key from audio hash
+	sum := sha256.Sum256(audioData)
+	hash := fmt.Sprintf("%x", sum)
+
+	// Serve from cache if available
+	var cached dto.AIVoiceParseResponse
+	if err := uc.cache.GetVoiceCache(ctx, hash, &cached); err == nil {
+		cached.Cached = true
+		return &cached, nil
+	}
+
+	// Parse via Gemini multimodal
+	result, err := uc.ai.ParseExpenseFromAudio(ctx, audioData, mimeType)
+	if err != nil {
+		return nil, fmt.Errorf("voice parse: %w", err)
+	}
+
+	// Persist to cache (best-effort; don't fail on Redis errors)
+	_ = uc.cache.SetVoiceCache(ctx, hash, result)
+
+	return result, nil
 }
 
 // Search converts a natural-language query to SQL and returns matching expenses.

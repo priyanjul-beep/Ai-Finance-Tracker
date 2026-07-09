@@ -109,6 +109,16 @@ func (r *RedisCache) SetDashboard(ctx context.Context, userID string, data inter
 	return r.Set(ctx, dashboardKey(userID), data, dashboardTTL)
 }
 
+// GetVoiceCache retrieves a cached voice-parse result by SHA-256 hash of audio.
+func (r *RedisCache) GetVoiceCache(ctx context.Context, hash string, dest interface{}) error {
+	return r.Get(ctx, voiceCacheKey(hash), dest)
+}
+
+// SetVoiceCache stores a voice-parse result for 24 hours.
+func (r *RedisCache) SetVoiceCache(ctx context.Context, hash string, data interface{}) error {
+	return r.Set(ctx, voiceCacheKey(hash), data, 24*time.Hour)
+}
+
 // InvalidateUser removes all user-scoped cache keys.
 func (r *RedisCache) InvalidateUser(ctx context.Context, userID string) error {
 	keys := []string{
@@ -121,5 +131,6 @@ func (r *RedisCache) InvalidateUser(ctx context.Context, userID string) error {
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-func merchantKey(merchant string) string  { return fmt.Sprintf("merchant:%s", merchant) }
+func merchantKey(merchant string) string { return fmt.Sprintf("merchant:%s", merchant) }
 func dashboardKey(userID string) string   { return fmt.Sprintf("dashboard:%s", userID) }
+func voiceCacheKey(hash string) string    { return fmt.Sprintf("voice:parse:%s", hash) }
