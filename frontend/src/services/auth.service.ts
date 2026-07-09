@@ -54,7 +54,7 @@ export const authService = {
 
   // Log out (revoke all sessions)
   logout: async (): Promise<void> => {
-    await api.post("/auth/logout");
+    await api.post("/users/logout");
   },
 
   // Get Google OAuth URL

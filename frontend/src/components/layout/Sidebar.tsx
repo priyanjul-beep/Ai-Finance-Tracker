@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,6 +38,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, toggleSidebar } = useAppStore();
   const { user, logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   return (
     <motion.aside
@@ -114,7 +116,7 @@ export function Sidebar() {
         </Link>
 
         <button
-          onClick={logout}
+          onClick={() => setShowLogoutModal(true)}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
         >
           <LogOut className="h-5 w-5 flex-shrink-0" />
@@ -136,6 +138,59 @@ export function Sidebar() {
           </div>
         )}
       </div>
+
+      {/* Logout confirmation modal */}
+      <AnimatePresence>
+        {showLogoutModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowLogoutModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.15 }}
+              className="mx-4 w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Icon */}
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+                <LogOut className="h-6 w-6 text-destructive" />
+              </div>
+
+              <h2 className="text-base font-semibold text-foreground">
+                Sign out of AI Finance?
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                You will be redirected to the login page. Any unsaved changes
+                will be lost.
+              </p>
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => setShowLogoutModal(false)}
+                  className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLogoutModal(false);
+                    logout();
+                  }}
+                  className="flex-1 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                >
+                  Sign out
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Collapse toggle */}
       <button
