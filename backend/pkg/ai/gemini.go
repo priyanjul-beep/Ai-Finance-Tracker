@@ -20,13 +20,17 @@ type GeminiProvider struct {
 }
 
 // NewGeminiProvider creates an authenticated Gemini client.
-func NewGeminiProvider(apiKey string) (*GeminiProvider, error) {
+// model defaults to "gemini-2.0-flash" when empty.
+func NewGeminiProvider(apiKey, model string) (*GeminiProvider, error) {
+	if model == "" {
+		model = "gemini-2.0-flash"
+	}
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, fmt.Errorf("gemini: new client: %w", err)
 	}
-	return &GeminiProvider{client: client, model: "gemini-1.5-flash"}, nil
+	return &GeminiProvider{client: client, model: model}, nil
 }
 
 // Close releases the Gemini client resources.

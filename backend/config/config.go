@@ -35,7 +35,8 @@ type Config struct {
 	GoogleRedirectURL  string
 
 	// AI Providers
-	GeminiAPIKey string
+	GeminiAPIKey  string
+	GeminiModel   string
 
 	// OCR
 	TesseractPath string
@@ -93,6 +94,7 @@ func Load() (*Config, error) {
 		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", ""),
 
 		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-2.0-flash"),
 		TesseractPath:    getEnv("TESSERACT_PATH", "/usr/bin/tesseract"),
 		WhisperModelPath: getEnv("WHISPER_MODEL_PATH", "./models/whisper"),
 

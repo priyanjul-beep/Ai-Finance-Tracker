@@ -66,7 +66,7 @@ func main() {
 	defer queueClient.Close()
 
 	// ── AI Provider ───────────────────────────────────────────────────────────
-	gemini, err := pkgAI.NewGeminiProvider(cfg.GeminiAPIKey)
+	gemini, err := pkgAI.NewGeminiProvider(cfg.GeminiAPIKey, cfg.GeminiModel)
 	if err != nil {
 		appLog.Fatal("gemini init failed", "error", err)
 	}

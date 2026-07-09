@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -129,6 +130,11 @@ func (h *ExpenseHandler) VoiceParse(c *gin.Context) {
 	mimeType := header.Header.Get("Content-Type")
 	if mimeType == "" || mimeType == "application/octet-stream" {
 		mimeType = "audio/webm"
+	}
+	// Strip codec/parameter suffix — Gemini only accepts bare MIME types
+	// e.g. "audio/webm;codecs=opus" → "audio/webm"
+	if idx := strings.Index(mimeType, ";"); idx != -1 {
+		mimeType = strings.TrimSpace(mimeType[:idx])
 	}
 
 	result, err := h.svc.ParseFromVoice(c.Request.Context(), userID, audioData, mimeType)
