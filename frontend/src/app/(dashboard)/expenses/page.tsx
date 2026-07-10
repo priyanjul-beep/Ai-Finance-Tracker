@@ -97,6 +97,7 @@ export default function ExpensesPage() {
             </Link>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
@@ -149,6 +150,7 @@ export default function ExpensesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

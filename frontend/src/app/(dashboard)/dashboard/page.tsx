@@ -63,7 +63,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Category pie */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -98,7 +98,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Bottom row: recent expenses + AI insights */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Recent expenses */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}

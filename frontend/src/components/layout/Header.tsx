@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, Plus } from "lucide-react";
+import { Bell, Plus, Menu } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppStore } from "@/store/app.store";
 import { formatDate } from "@/lib/utils";
 
 interface HeaderProps {
@@ -11,27 +12,37 @@ interface HeaderProps {
 
 export function Header({ title }: HeaderProps) {
   const { user } = useAuth();
+  const { toggleMobileSidebar } = useAppStore();
   const today = formatDate(new Date());
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-border bg-background px-6">
-      {/* Title */}
-      <div>
-        {title && (
-          <h1 className="text-lg font-semibold text-foreground">{title}</h1>
-        )}
-        <p className="text-xs text-muted-foreground">{today}</p>
+    <header className="flex h-16 items-center justify-between border-b border-border bg-background px-4 md:px-6">
+      {/* Left: hamburger (mobile) + date */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={toggleMobileSidebar}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border hover:bg-muted transition-colors md:hidden"
+          aria-label="Open menu"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <div>
+          {title && (
+            <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+          )}
+          <p className="text-xs text-muted-foreground">{today}</p>
+        </div>
       </div>
 
       {/* Right actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         {/* Quick add button */}
         <Link
           href="/expenses/new"
-          className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
-          Add Expense
+          <span className="hidden sm:inline">Add Expense</span>
         </Link>
 
         {/* Notifications */}
@@ -40,7 +51,6 @@ export function Header({ title }: HeaderProps) {
           className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border hover:bg-muted transition-colors"
         >
           <Bell className="h-4 w-4" />
-          {/* Unread badge */}
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
             0
           </span>

@@ -7,10 +7,15 @@ type Theme = "light" | "dark" | "system";
 // ─── App / UI State ──────────────────────────────────────────────────────────
 
 interface AppState {
-  // Sidebar
+  // Sidebar (desktop collapse)
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
+
+  // Mobile sidebar drawer
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+  toggleMobileSidebar: () => void;
 
   // Theme
   theme: Theme;
@@ -33,6 +38,10 @@ export const useAppStore = create<AppState>((set) => ({
   sidebarOpen: true,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+
+  mobileSidebarOpen: false,
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
+  toggleMobileSidebar: () => set((s) => ({ mobileSidebarOpen: !s.mobileSidebarOpen })),
 
   theme: "system",
   setTheme: (theme) => set({ theme }),
