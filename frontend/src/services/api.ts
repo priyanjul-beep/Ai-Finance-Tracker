@@ -49,7 +49,12 @@ api.interceptors.response.use(
     };
 
     // 401 – try to refresh token once
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip refresh logic for auth endpoints (login failures should not trigger redirect)
+    const isAuthEndpoint = originalRequest.url?.includes("/auth/login") ||
+      originalRequest.url?.includes("/auth/signup") ||
+      originalRequest.url?.includes("/auth/refresh");
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const refreshToken = useAuthStore.getState().refreshToken;
 
       if (!refreshToken) {

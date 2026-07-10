@@ -37,6 +37,14 @@ export function useAuth() {
       toast.success("Account created! Please verify your email.");
       router.push("/dashboard");
     },
+    onError: (error: unknown) => {
+      // The axios interceptor handles toasts for non-401 errors.
+      // For 401 on login (wrong credentials) it skips toasting, so we handle it here.
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        toast.error("Invalid email or password");
+      }
+    },
   });
 
   // ── Log in ─────────────────────────────────────────────────────────────────
@@ -46,6 +54,12 @@ export function useAuth() {
       setAuth(data.user, data.access_token, data.refresh_token);
       toast.success(`Welcome back, ${data.user.name}!`);
       router.push("/dashboard");
+    },
+    onError: (error: unknown) => {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || status === 400) {
+        toast.error("Invalid email or password");
+      }
     },
   });
 
