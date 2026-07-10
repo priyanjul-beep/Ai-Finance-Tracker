@@ -236,6 +236,27 @@ func (uc *ExpenseUseCase) ParseFromVoice(ctx context.Context, _ string, audioDat
 	return result, nil
 }
 
+// ParseFromImage analyses a receipt/screenshot image via Gemini Vision.
+// Results are cached by SHA-256 of the raw image bytes (24h TTL).
+func (uc *ExpenseUseCase) ParseFromImage(ctx context.Context, _ string, imageData []byte, mimeType, ocrText string) (*dto.AIReceiptScanResponse, error) {
+	sum := sha256.Sum256(imageData)
+	hash := fmt.Sprintf("%x", sum)
+
+	var cached dto.AIReceiptScanResponse
+	if err := uc.cache.GetScanCache(ctx, hash, &cached); err == nil {
+		cached.Cached = true
+		return &cached, nil
+	}
+
+	result, err := uc.ai.ParseExpenseFromImage(ctx, imageData, mimeType, ocrText)
+	if err != nil {
+		return nil, fmt.Errorf("image scan: %w", err)
+	}
+
+	_ = uc.cache.SetScanCache(ctx, hash, result)
+	return result, nil
+}
+
 // Search converts a natural-language query to SQL and returns matching expenses.
 func (uc *ExpenseUseCase) Search(ctx context.Context, userID, query string) ([]dto.ExpenseDTO, error) {
 	whereClause, err := uc.ai.NLToSQLFilter(ctx, query, userID)

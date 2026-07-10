@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -17,9 +20,15 @@ import (
 // ─── Expense ──────────────────────────────────────────────────────────────────
 
 // ExpenseHandler handles /expenses endpoints.
-type ExpenseHandler struct{ svc interfaces.ExpenseService }
+type ExpenseHandler struct {
+	svc           interfaces.ExpenseService
+	tesseractPath string
+	enableOCR     bool
+}
 
-func NewExpenseHandler(svc interfaces.ExpenseService) *ExpenseHandler { return &ExpenseHandler{svc: svc} }
+func NewExpenseHandler(svc interfaces.ExpenseService, tesseractPath string, enableOCR bool) *ExpenseHandler {
+	return &ExpenseHandler{svc: svc, tesseractPath: tesseractPath, enableOCR: enableOCR}
+}
 
 func (h *ExpenseHandler) Create(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
@@ -144,6 +153,100 @@ func (h *ExpenseHandler) VoiceParse(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// ScanReceipt accepts a multipart/form-data image (JPG/PNG/WEBP), runs optional
+// Tesseract OCR, then passes everything to Gemini Vision for structured extraction.
+func (h *ExpenseHandler) ScanReceipt(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		abortBadRequest(c, "image file is required (field name: image)")
+		return
+	}
+	defer file.Close()
+
+	const maxSize = 10 << 20 // 10 MB
+	if header.Size > maxSize {
+		abortBadRequest(c, "image file too large (max 10 MB)")
+		return
+	}
+
+	imageData, err := io.ReadAll(file)
+	if err != nil {
+		abortServerError(c, "failed to read image file")
+		return
+	}
+
+	// Detect & normalise MIME type
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = http.DetectContentType(imageData)
+	}
+	if idx := strings.Index(mimeType, ";"); idx != -1 {
+		mimeType = strings.TrimSpace(mimeType[:idx])
+	}
+
+	switch mimeType {
+	case "image/jpeg", "image/png", "image/webp":
+		// accepted
+	default:
+		abortBadRequest(c, "unsupported image type — use JPG, PNG, or WEBP")
+		return
+	}
+
+	// Optional Tesseract OCR — best-effort, never blocks the response
+	var ocrText string
+	if h.enableOCR && h.tesseractPath != "" {
+		ocrText = runTesseract(h.tesseractPath, imageData, mimeType)
+	}
+
+	scanResult, err := h.svc.ParseFromImage(c.Request.Context(), userID, imageData, mimeType, ocrText)
+	if err != nil {
+		abortServerError(c, "receipt scan failed: "+err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, scanResult)
+}
+
+// runTesseract writes imageData to a temp file, runs the tesseract binary, and
+// returns the extracted text. Returns "" on any failure — OCR is best-effort.
+func runTesseract(binaryPath string, imageData []byte, mimeType string) string {
+	ext := ".jpg"
+	switch mimeType {
+	case "image/png":
+		ext = ".png"
+	case "image/webp":
+		ext = ".webp"
+	}
+
+	tmp, err := os.CreateTemp("", "receipt-ocr-*"+ext)
+	if err != nil {
+		return ""
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.Write(imageData); err != nil {
+		tmp.Close()
+		return ""
+	}
+	tmp.Close()
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binaryPath, tmp.Name(), "stdout", "-l", "eng", "--oem", "1", "--psm", "3")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return ""
+	}
+	text := strings.TrimSpace(stdout.String())
+	if len(text) < 5 {
+		return ""
+	}
+	return text
 }
 
 func (h *ExpenseHandler) Search(c *gin.Context) {

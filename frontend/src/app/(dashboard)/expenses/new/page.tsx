@@ -3,11 +3,12 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Loader2, Mic } from "lucide-react";
+import { ArrowLeft, Loader2, Mic, ScanLine } from "lucide-react";
 import Link from "next/link";
 import { useCreateExpense } from "@/hooks/useExpenses";
 import { VoiceExpenseModal } from "@/components/expenses/VoiceExpenseModal";
-import type { CreateExpenseRequest, AIVoiceParseResponse } from "@/types";
+import { ReceiptScanModal } from "@/components/expenses/ReceiptScanModal";
+import type { CreateExpenseRequest, AIVoiceParseResponse, AIReceiptScanResponse } from "@/types";
 
 const CATEGORIES = [
   "Food & Dining",
@@ -81,6 +82,7 @@ export default function NewExpensePage() {
   const router = useRouter();
   const { mutate: createExpense, isPending } = useCreateExpense();
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [scanOpen, setScanOpen]   = useState(false);
   const [autoFillBanner, setAutoFillBanner] = useState(false);
 
   const {
@@ -91,7 +93,7 @@ export default function NewExpensePage() {
   } = useForm<CreateExpenseRequest>({
     defaultValues: {
       date: new Date().toISOString().split("T")[0],
-      currency: "USD",
+      currency: "INR",
       expense_type: "spend",
     },
   });
@@ -110,6 +112,26 @@ export default function NewExpensePage() {
       setValue("category", cat);
 
       // Resolve relative date → YYYY-MM-DD
+      setValue("date", resolveDateString(result.date));
+
+      setAutoFillBanner(true);
+      setTimeout(() => setAutoFillBanner(false), 5_000);
+    },
+    [setValue]
+  );
+
+  /** Called by ReceiptScanModal — maps receipt scan result to the form fields */
+  const handleScanFill = useCallback(
+    (result: AIReceiptScanResponse) => {
+      if (result.amount)         setValue("amount",         result.amount);
+      if (result.merchant)       setValue("merchant",       result.merchant);
+      if (result.notes)          setValue("notes",          result.notes);
+      if (result.expense_type)   setValue("expense_type",   result.expense_type as CreateExpenseRequest["expense_type"]);
+      if (result.payment_method) setValue("payment_method", result.payment_method);
+      if (result.currency)       setValue("currency",       result.currency);
+
+      const cat = AI_CATEGORY_MAP[result.category?.toLowerCase?.() ?? ""] ?? "Other";
+      setValue("category", cat);
       setValue("date", resolveDateString(result.date));
 
       setAutoFillBanner(true);
@@ -154,7 +176,17 @@ export default function NewExpensePage() {
           className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
         >
           <Mic className="h-4 w-4" />
-          <span className="hidden sm:inline">Voice Input</span>
+          <span className="hidden sm:inline">Voice</span>
+        </button>
+
+        {/* Scan receipt button */}
+        <button
+          type="button"
+          onClick={() => setScanOpen(true)}
+          className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/5 px-3 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 transition-colors"
+        >
+          <ScanLine className="h-4 w-4" />
+          <span className="hidden sm:inline">Scan</span>
         </button>
       </div>
 
@@ -162,7 +194,7 @@ export default function NewExpensePage() {
       {autoFillBanner && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-400">
           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          Form auto-filled from voice input — review and save.
+          Form auto-filled from AI — review and save.
         </div>
       )}
 
@@ -197,7 +229,7 @@ export default function NewExpensePage() {
             <label className="text-sm font-medium">Currency</label>
             <input
               type="text"
-              placeholder="USD"
+              placeholder="INR"
               maxLength={3}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary uppercase"
               {...register("currency")}
@@ -336,6 +368,13 @@ export default function NewExpensePage() {
         open={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         onAutoFill={handleAutoFill}
+      />
+
+      {/* Receipt scan modal */}
+      <ReceiptScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onAutoFill={handleScanFill}
       />
     </div>
   );

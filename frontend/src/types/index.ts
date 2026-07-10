@@ -135,6 +135,25 @@ export interface AIVoiceParseResponse {
   cached: boolean;
 }
 
+/** Mirrors backend dto.AIReceiptScanResponse */
+export interface AIReceiptScanResponse {
+  amount: number;
+  merchant: string;
+  category: string;
+  payment_method: string;
+  expense_type: string;
+  currency: string;
+  /** YYYY-MM-DD */
+  date: string;
+  transaction_id: string;
+  notes: string;
+  tax_amount: number;
+  invoice_number: string;
+  confidence: number;
+  raw_text?: string;
+  cached: boolean;
+}
+
 // ─── Income ──────────────────────────────────────────────────────────────────
 
 export interface Income {

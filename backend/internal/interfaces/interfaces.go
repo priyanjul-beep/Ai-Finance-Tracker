@@ -181,6 +181,7 @@ type ExpenseService interface {
 	Delete(ctx context.Context, userID, id string) error
 	ParseFromText(ctx context.Context, userID string, req dto.AIExpenseParseRequest) (*dto.AIExpenseParseResponse, error)
 	ParseFromVoice(ctx context.Context, userID string, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error)
+	ParseFromImage(ctx context.Context, userID string, imageData []byte, mimeType, ocrText string) (*dto.AIReceiptScanResponse, error)
 	Search(ctx context.Context, userID, query string) ([]dto.ExpenseDTO, error)
 	GetDuplicates(ctx context.Context, userID, id string) ([]dto.ExpenseDTO, error)
 }
@@ -222,6 +223,7 @@ type AnalyticsService interface {
 type AIProvider interface {
 	ParseExpense(ctx context.Context, text, imageURL string) (*dto.AIExpenseParseResponse, error)
 	ParseExpenseFromAudio(ctx context.Context, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error)
+	ParseExpenseFromImage(ctx context.Context, imageData []byte, mimeType, ocrText string) (*dto.AIReceiptScanResponse, error)
 	CategorizeExpense(ctx context.Context, merchant, description string) (string, error)
 	GenerateSummary(ctx context.Context, data string, summaryType string) (string, error)
 	GenerateInsights(ctx context.Context, data map[string]interface{}) ([]string, error)
@@ -244,6 +246,9 @@ type CacheService interface {
 	// Voice-parse cache: keyed by SHA-256 hash of raw audio bytes (24h TTL).
 	GetVoiceCache(ctx context.Context, hash string, dest interface{}) error
 	SetVoiceCache(ctx context.Context, hash string, data interface{}) error
+	// Receipt-scan cache: keyed by SHA-256 hash of raw image bytes (24h TTL).
+	GetScanCache(ctx context.Context, hash string, dest interface{}) error
+	SetScanCache(ctx context.Context, hash string, data interface{}) error
 }
 
 // QueueService enqueues background jobs via Asynq.

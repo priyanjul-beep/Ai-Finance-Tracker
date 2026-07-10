@@ -194,6 +194,85 @@ Return ONLY valid JSON: {"score": <0-100>}`, string(jsonData))
 	return result.Score, nil
 }
 
+// ParseExpenseFromImage sends an image to Gemini Vision for receipt/screenshot
+// analysis. ocrText is optional pre-extracted text that improves accuracy.
+func (g *GeminiProvider) ParseExpenseFromImage(ctx context.Context, imageData []byte, mimeType, ocrText string) (*dto.AIReceiptScanResponse, error) {
+	if len(imageData) == 0 {
+		return nil, fmt.Errorf("gemini: empty image data")
+	}
+
+	promptText := `You are an expert financial document parser. Examine this image carefully — it may be a UPI payment screenshot, PhonePe/GPay/Paytm confirmation, bank transfer notification, restaurant bill, shopping receipt, invoice, grocery bill, utility bill, fuel receipt, or any payment proof.
+
+Extract ALL financial details and return ONLY valid JSON with no markdown fences:
+
+{
+  "amount": <total amount paid — number>,
+  "merchant": "<merchant/store/payee name as shown on the receipt>",
+  "category": "<one of: food|travel|shopping|entertainment|health|investment|education|bills|recharge|fuel|rent|salary|utilities|subscription|personal_care|gift|others|unknown>",
+  "payment_method": "<one of: cash|card|upi|bank|wallet|online>",
+  "expense_type": "<spend|refund|transfer — use 'refund' for cashback/reversal>",
+  "currency": "<3-letter ISO code: INR|USD|EUR|GBP — default INR if unclear>",
+  "date": "<YYYY-MM-DD>",
+  "transaction_id": "<UPI Ref No / Order ID / Transaction ID or empty string>",
+  "notes": "<brief purchase description or empty string>",
+  "tax_amount": <GST/VAT/tax as number or 0>,
+  "invoice_number": "<invoice or bill number or empty string>",
+  "confidence": <0.0-1.0>
+}
+
+Category rules:
+• Swiggy|Zomato|Domino's|McDonald's|KFC|restaurant|food delivery → food
+• Uber|Ola|Rapido|IRCTC|bus|metro|flight|MakeMyTrip → travel
+• Amazon|Flipkart|Myntra|Meesho|Ajio|Nykaa|retail shop → shopping
+• Blinkit|Zepto|BigBasket|Dunzo|grocery|supermarket → food
+• Apollo|Medplus|1mg|PharmEasy|hospital|clinic|doctor|pharmacy → health
+• BESCOM|CESC|Tata Power|electricity|water board|gas bill → bills
+• Airtel|Jio|Vi|BSNL|recharge|mobile bill|internet → recharge
+• Indian Oil|HPCL|BPCL|Shell|HP|petrol pump|fuel → fuel
+• Netflix|Spotify|Amazon Prime|Disney+|YouTube Premium → subscription
+• college|school|fees|tuition|course|university → education
+• Reliance Smart|D-Mart|More|Spencer's|supermarket → shopping
+
+Payment method hints:
+• "UPI"|"UPI Ref"|"VPA"|"GPay"|"PhonePe"|"Paytm" → upi
+• "Credit Card"|"Debit Card"|"VISA"|"Mastercard"|"RuPay" → card
+• "NEFT"|"RTGS"|"IMPS"|"Net Banking" → bank
+• "Cash"|"COD" → cash
+• "Wallet"|"Mobikwik"|"Ola Money" → wallet`
+
+	var parts []genai.Part
+	parts = append(parts, genai.Text(promptText))
+	parts = append(parts, genai.Blob{MIMEType: mimeType, Data: imageData})
+
+	if ocrText != "" {
+		parts = append(parts, genai.Text(fmt.Sprintf(
+			"\n\nAdditional OCR text extracted from the image (use as supplementary hint):\n---\n%s\n---",
+			ocrText,
+		)))
+	}
+
+	model := g.client.GenerativeModel(g.model)
+	resp, err := model.GenerateContent(ctx, parts...)
+	if err != nil {
+		return nil, fmt.Errorf("gemini: receipt scan: %w", err)
+	}
+	if len(resp.Candidates) == 0 {
+		return nil, fmt.Errorf("gemini: receipt scan: no candidates")
+	}
+
+	var sb strings.Builder
+	for _, part := range resp.Candidates[0].Content.Parts {
+		sb.WriteString(fmt.Sprintf("%v", part))
+	}
+	raw := cleanJSON(sb.String())
+
+	var result dto.AIReceiptScanResponse
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		return nil, fmt.Errorf("gemini: receipt scan unmarshal: %w (raw=%s)", err, raw)
+	}
+	return &result, nil
+}
+
 // ParseExpenseFromAudio sends audio bytes to Gemini (multimodal) and returns
 // a fully parsed expense including the transcript. Gemini 1.5-flash can
 // process audio inline up to ~9.5 MB without uploading to Files API.
