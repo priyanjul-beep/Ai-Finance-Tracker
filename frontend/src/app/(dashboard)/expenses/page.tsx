@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, ChevronLeft, ChevronRight, Loader2, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, ChevronLeft, ChevronRight, Loader2, ChevronsLeft, ChevronsRight, X } from "lucide-react";
 import Link from "next/link";
 import { useExpenses, useDeleteExpense } from "@/hooks/useExpenses";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -38,10 +38,25 @@ function pageWindow(current: number, total: number): (number | "…")[] {
 
 export default function ExpensesPage() {
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  const [merchantInput, setMerchantInput] = useState("");
+  const [categoryInput, setCategoryInput] = useState("");
+  const [merchant, setMerchant] = useState("");
+  const [category, setCategory] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useExpenses({ page, limit: LIMIT, search: search || undefined });
+  const applyFilters = () => {
+    setMerchant(merchantInput);
+    setCategory(categoryInput);
+    setPage(1);
+  };
+  const clearFilters = () => {
+    setMerchantInput(""); setCategoryInput("");
+    setMerchant(""); setCategory("");
+    setPage(1);
+  };
+  const hasFilter = merchant !== "" || category !== "";
+
+  const { data, isLoading } = useExpenses({ page, limit: LIMIT, merchant: merchant || undefined, category: category || undefined });
   const { mutate: deleteExpense, isPending: isDeleting } = useDeleteExpense();
 
   const expenses   = data?.data        ?? [];
@@ -71,16 +86,43 @@ export default function ExpensesPage() {
         </Link>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search expenses…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-        />
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        {/* Merchant search */}
+        <div className="relative flex-1 min-w-[160px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Merchant…"
+            value={merchantInput}
+            onChange={(e) => setMerchantInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applyFilters()}
+            className="w-full rounded-lg border border-input bg-background py-1.5 pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        {/* Category dropdown */}
+        <select
+          value={categoryInput}
+          onChange={(e) => setCategoryInput(e.target.value)}
+          className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary min-w-[150px]"
+        >
+          <option value="">All Categories</option>
+          {Object.keys(CATEGORY_COLORS).map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <button
+          onClick={applyFilters}
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Search className="h-4 w-4" />
+          Search
+        </button>
+        {hasFilter && (
+          <button onClick={clearFilters} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted transition-colors">
+            <X className="h-4 w-4" /> Clear
+          </button>
+        )}
       </div>
 
       {/* Table */}

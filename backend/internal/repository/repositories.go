@@ -110,6 +110,33 @@ func (r *ExpenseRepo) GetByUserID(ctx context.Context, userID string, limit, off
 	err := base.Preload("Tags").Order("date DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, total, err
 }
+func (r *ExpenseRepo) Search(ctx context.Context, userID, merchant, category string, limit, offset int) ([]domain.Expense, int64, error) {
+	var total int64
+
+	// Build WHERE conditions
+	countQ := r.db.WithContext(ctx).Model(&domain.Expense{}).Where("user_id = ?", userID)
+	if merchant != "" {
+		countQ = countQ.Where("LOWER(merchant) LIKE ?", "%"+strings.ToLower(merchant)+"%")
+	}
+	if category != "" {
+		countQ = countQ.Where("LOWER(category) = ?", strings.ToLower(category))
+	}
+	if err := countQ.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Separate query for rows
+	var rows []domain.Expense
+	rowQ := r.db.WithContext(ctx).Where("user_id = ?", userID)
+	if merchant != "" {
+		rowQ = rowQ.Where("LOWER(merchant) LIKE ?", "%"+strings.ToLower(merchant)+"%")
+	}
+	if category != "" {
+		rowQ = rowQ.Where("LOWER(category) = ?", strings.ToLower(category))
+	}
+	err := rowQ.Preload("Tags").Order("date DESC").Limit(limit).Offset(offset).Find(&rows).Error
+	return rows, total, err
+}
 func (r *ExpenseRepo) Update(ctx context.Context, e *domain.Expense) error {
 	return r.db.WithContext(ctx).Save(e).Error
 }

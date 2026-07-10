@@ -122,7 +122,16 @@ func (uc *ExpenseUseCase) GetByID(ctx context.Context, userID, id string) (*dto.
 // List returns a paginated list of expenses for the user.
 func (uc *ExpenseUseCase) List(ctx context.Context, userID string, p dto.PaginationParams) (*dto.PaginatedResponse, error) {
 	offset := (p.Page - 1) * p.Limit
-	rows, total, err := uc.expenses.GetByUserID(ctx, userID, p.Limit, offset)
+	var (
+		rows  []domain.Expense
+		total int64
+		err   error
+	)
+	if p.Category != "" || p.Merchant != "" {
+		rows, total, err = uc.expenses.Search(ctx, userID, p.Merchant, p.Category, p.Limit, offset)
+	} else {
+		rows, total, err = uc.expenses.GetByUserID(ctx, userID, p.Limit, offset)
+	}
 	if err != nil {
 		return nil, err
 	}

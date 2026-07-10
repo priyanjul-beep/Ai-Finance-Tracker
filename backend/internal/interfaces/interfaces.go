@@ -48,6 +48,7 @@ type ExpenseRepository interface {
 	Create(ctx context.Context, expense *domain.Expense) error
 	GetByID(ctx context.Context, id string) (*domain.Expense, error)
 	GetByUserID(ctx context.Context, userID string, limit, offset int) ([]domain.Expense, int64, error)
+	Search(ctx context.Context, userID, merchant, category string, limit, offset int) ([]domain.Expense, int64, error)
 	Update(ctx context.Context, expense *domain.Expense) error
 	Delete(ctx context.Context, id string) error
 	GetByDateRange(ctx context.Context, userID string, from, to time.Time) ([]domain.Expense, error)

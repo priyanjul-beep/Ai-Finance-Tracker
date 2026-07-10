@@ -526,9 +526,12 @@ func parsePagination(c *gin.Context) dto.PaginationParams {
 		limit = 20
 	}
 	return dto.PaginationParams{
-		Page:  page,
-		Limit: limit,
-		Sort:  c.Query("sort"),
-		Order: c.DefaultQuery("order", "desc"),
+		Page:     page,
+		Limit:    limit,
+		Sort:     c.Query("sort"),
+		Order:    c.DefaultQuery("order", "desc"),
+		Search:   c.Query("search"),
+		Category: c.Query("category"),
+		Merchant: c.Query("merchant"),
 	}
 }

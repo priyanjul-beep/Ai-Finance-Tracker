@@ -420,10 +420,13 @@ type MonthlyReportDTO struct {
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 type PaginationParams struct {
-	Page  int    `form:"page"  validate:"required,min=1"`
-	Limit int    `form:"limit" validate:"required,min=1,max=100"`
-	Sort  string `form:"sort"`
-	Order string `form:"order" validate:"omitempty,oneof=asc desc"`
+	Page     int    `form:"page"     validate:"required,min=1"`
+	Limit    int    `form:"limit"    validate:"required,min=1,max=100"`
+	Sort     string `form:"sort"`
+	Order    string `form:"order"    validate:"omitempty,oneof=asc desc"`
+	Search   string `form:"search"`
+	Category string `form:"category"`
+	Merchant string `form:"merchant"`
 }
 
 type PaginatedResponse struct {
