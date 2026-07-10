@@ -76,7 +76,7 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		ServerPort:     getEnv("SERVER_PORT", "8080"),
+		ServerPort:     getEnvFallback("SERVER_PORT", "PORT", "8080"),
 		Environment:    getEnv("APP_ENV", "development"),
 		LogLevel:       getEnv("LOG_LEVEL", "info"),
 		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "http://localhost:3000"),
@@ -161,6 +161,18 @@ func getBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return v == "true" || v == "1" || v == "yes"
+}
+
+// getEnvFallback tries primary key first, then secondary key, then default.
+// Useful for platforms (e.g. Render) that inject PORT instead of SERVER_PORT.
+func getEnvFallback(primary, secondary, fallback string) string {
+	if v := os.Getenv(primary); v != "" {
+		return v
+	}
+	if v := os.Getenv(secondary); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func parseDuration(key string, fallbackSeconds int) time.Duration {
