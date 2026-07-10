@@ -40,6 +40,7 @@ type Config struct {
 
 	// OCR
 	TesseractPath string
+	EnableOCR     bool
 
 	// Voice / Whisper
 	WhisperModelPath string
@@ -96,6 +97,7 @@ func Load() (*Config, error) {
 		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
 		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-2.0-flash"),
 		TesseractPath:    getEnv("TESSERACT_PATH", "/usr/bin/tesseract"),
+		EnableOCR:        getBool("ENABLE_OCR", false),
 		WhisperModelPath: getEnv("WHISPER_MODEL_PATH", "./models/whisper"),
 
 		SMTPHost:     getEnv("SMTP_HOST", ""),

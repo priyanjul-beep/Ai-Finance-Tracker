@@ -131,7 +131,7 @@ func main() {
 	// ── Handlers ──────────────────────────────────────────────────────────────
 	authH      := handler.NewAuth(authUC)
 	userH      := handler.NewUserHandler(userUC)
-	expenseH   := handler.NewExpenseHandler(expenseUC)
+	expenseH   := handler.NewExpenseHandler(expenseUC, cfg.TesseractPath, cfg.EnableOCR)
 	analyticsH := handler.NewAnalyticsHandler(analyticsUC)
 	incomeH     := handler.NewIncomeHandler(incomeUC)
 	budgetH     := handler.NewBudgetHandler(budgetUC)
@@ -214,6 +214,7 @@ func main() {
 			expenses.DELETE("/:id",        expenseH.Delete)
 			expenses.POST("/parse",        expenseH.Parse)
 			expenses.POST("/voice-parse",  expenseH.VoiceParse)
+			expenses.POST("/scan",         expenseH.ScanReceipt)
 			expenses.GET("/:id/duplicates", expenseH.GetDuplicates)
 		}
 

@@ -143,6 +143,25 @@ type AIVoiceParseResponse struct {
 	Cached        bool    `json:"cached"`
 }
 
+// AIReceiptScanResponse is returned by POST /expenses/scan.
+// Every field is a raw string so the frontend can display / resolve before saving.
+type AIReceiptScanResponse struct {
+	Amount        float64 `json:"amount"`
+	Merchant      string  `json:"merchant"`
+	Category      string  `json:"category"`
+	PaymentMethod string  `json:"payment_method"`
+	ExpenseType   string  `json:"expense_type"`
+	Currency      string  `json:"currency"`
+	Date          string  `json:"date"`           // YYYY-MM-DD
+	TransactionID string  `json:"transaction_id"`
+	Notes         string  `json:"notes"`
+	TaxAmount     float64 `json:"tax_amount"`
+	InvoiceNumber string  `json:"invoice_number"`
+	Confidence    float64 `json:"confidence"`
+	RawText       string  `json:"raw_text,omitempty"` // OCR output (omitted in production)
+	Cached        bool    `json:"cached"`
+}
+
 // ─── Income ───────────────────────────────────────────────────────────────────
 
 type CreateIncomeRequest struct {

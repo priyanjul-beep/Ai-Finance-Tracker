@@ -119,6 +119,16 @@ func (r *RedisCache) SetVoiceCache(ctx context.Context, hash string, data interf
 	return r.Set(ctx, voiceCacheKey(hash), data, 24*time.Hour)
 }
 
+// GetScanCache retrieves a cached receipt-scan result by SHA-256 hash of image bytes.
+func (r *RedisCache) GetScanCache(ctx context.Context, hash string, dest interface{}) error {
+	return r.Get(ctx, scanCacheKey(hash), dest)
+}
+
+// SetScanCache stores a receipt-scan result for 24 hours.
+func (r *RedisCache) SetScanCache(ctx context.Context, hash string, data interface{}) error {
+	return r.Set(ctx, scanCacheKey(hash), data, 24*time.Hour)
+}
+
 // InvalidateUser removes all user-scoped cache keys.
 func (r *RedisCache) InvalidateUser(ctx context.Context, userID string) error {
 	keys := []string{
@@ -134,3 +144,4 @@ func (r *RedisCache) InvalidateUser(ctx context.Context, userID string) error {
 func merchantKey(merchant string) string { return fmt.Sprintf("merchant:%s", merchant) }
 func dashboardKey(userID string) string   { return fmt.Sprintf("dashboard:%s", userID) }
 func voiceCacheKey(hash string) string    { return fmt.Sprintf("voice:parse:%s", hash) }
+func scanCacheKey(hash string) string     { return fmt.Sprintf("scan:parse:%s", hash) }

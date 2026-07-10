@@ -36,6 +36,10 @@ type Provider interface {
 	// ParseExpenseFromAudio transcribes audio and extracts structured expense
 	// data in a single Gemini call (multimodal: audio + prompt).
 	ParseExpenseFromAudio(ctx context.Context, audioData []byte, mimeType string) (*dto.AIVoiceParseResponse, error)
+
+	// ParseExpenseFromImage analyses a receipt/screenshot image via Gemini Vision.
+	// ocrText is optional pre-extracted text passed as a supplementary hint.
+	ParseExpenseFromImage(ctx context.Context, imageData []byte, mimeType, ocrText string) (*dto.AIReceiptScanResponse, error)
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
