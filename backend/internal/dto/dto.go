@@ -88,6 +88,7 @@ type UpdateExpenseRequest struct {
 	Description   string    `json:"description"    validate:"omitempty,max=500"`
 	Notes         string    `json:"notes"          validate:"omitempty,max=1000"`
 	Date          time.Time `json:"date"           validate:"omitempty"`
+	ExpenseType   string    `json:"expense_type"   validate:"omitempty,oneof=spend refund transfer"`
 	PaymentMethod string    `json:"payment_method" validate:"omitempty,oneof=cash card upi bank wallet online"`
 	Tags          []string  `json:"tags"           validate:"omitempty"`
 	IsFavorite    *bool     `json:"is_favorite"    validate:"omitempty"`

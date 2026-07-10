@@ -179,6 +179,9 @@ func (uc *ExpenseUseCase) Update(ctx context.Context, userID, id string, req dto
 	if req.PaymentMethod != "" {
 		expense.PaymentMethod = domain.PaymentMethod(req.PaymentMethod)
 	}
+	if req.ExpenseType != "" {
+		expense.ExpenseType = domain.ExpenseType(req.ExpenseType)
+	}
 	if req.IsFavorite != nil {
 		expense.IsFavorite = *req.IsFavorite
 	}
