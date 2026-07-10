@@ -97,7 +97,7 @@ export function SpendingBarChart({
           axisLine={false}
         />
         <YAxis
-          tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+          tickFormatter={(v) => v >= 1000 ? `₹${(v / 1000).toFixed(1)}k` : `₹${v}`}
           tick={{ fontSize: 11 }}
           tickLine={false}
           axisLine={false}
@@ -145,7 +145,7 @@ export function IncomeExpenseChart({
           axisLine={false}
         />
         <YAxis
-          tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+          tickFormatter={(v) => v >= 1000 ? `₹${(v / 1000).toFixed(1)}k` : `₹${v}`}
           tick={{ fontSize: 11 }}
           tickLine={false}
           axisLine={false}

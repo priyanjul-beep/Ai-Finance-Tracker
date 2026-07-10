@@ -18,10 +18,16 @@ export const analyticsService = {
     year: number,
     month: number
   ): Promise<MonthlyReport> => {
-    const res = await api.get<MonthlyReport>(
+    const res = await api.get<MonthlyReport & { total_expense?: number; total_savings?: number }>(
       `/analytics/monthly/${month}/${year}`
     );
-    return res.data;
+    const d = res.data;
+    return {
+      ...d,
+      // Normalise backend field name variations
+      total_expenses: d.total_expenses ?? (d as any).total_expense ?? 0,
+      net_savings: d.net_savings ?? (d as any).total_savings ?? 0,
+    };
   },
 
   // Yearly report
