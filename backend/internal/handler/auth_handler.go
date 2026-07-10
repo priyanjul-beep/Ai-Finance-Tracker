@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -191,10 +192,17 @@ func (h *AuthHandler) GoogleOAuthCallback(c *gin.Context) {
 	}
 	resp, err := h.auth.GoogleOAuth(c.Request.Context(), code)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Code: "OAUTH_FAILED", Message: err.Error()})
+		// Redirect to frontend login with error so user sees a friendly message
+		c.Redirect(http.StatusFound, "http://localhost:3000/login?error=oauth_failed")
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	// Redirect to frontend callback page carrying tokens in query params
+	// (frontend reads them, stores in Zustand, then redirects to /dashboard)
+	redirectURL := fmt.Sprintf(
+		"http://localhost:3000/auth/callback?access_token=%s&refresh_token=%s",
+		resp.AccessToken, resp.RefreshToken,
+	)
+	c.Redirect(http.StatusFound, redirectURL)
 }
 
 // ─── User Profile Handler ─────────────────────────────────────────────────────

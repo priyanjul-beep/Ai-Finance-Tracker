@@ -7,6 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { authService } from "@/services/auth.service";
+import { toast } from "sonner";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -27,6 +29,15 @@ export default function LoginPage() {
 
   const onSubmit = (data: LoginForm) => {
     login(data);
+  };
+
+  const handleGoogleLogin = () => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId || clientId === "your-google-client-id.apps.googleusercontent.com") {
+      toast.error("Google sign-in is not configured yet.");
+      return;
+    }
+    window.location.href = authService.getGoogleOAuthURL();
   };
 
   return (
@@ -123,8 +134,7 @@ export default function LoginPage() {
 
           {/* Google OAuth */}
           <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors"
+            type="button"            onClick={handleGoogleLogin}            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4">
               <path

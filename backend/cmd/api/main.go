@@ -111,6 +111,7 @@ func main() {
 		cfg.JWTSecret, cfg.JWTRefreshSecret,
 		cfg.JWTExpiry, cfg.RefreshTokenExpiry,
 		"http://localhost:"+cfg.ServerPort,
+		cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL,
 	)
 
 	expenseUC := usecase.NewExpense(
