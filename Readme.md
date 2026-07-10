@@ -1,4 +1,4 @@
-# 🤖 AI Finance Tracker
+#  AI Finance Tracker
 
 A **production-grade, AI-powered personal finance assistant** built with Go (Gin) + Next.js 14.
 
@@ -24,7 +24,7 @@ Track expenses, manage budgets and goals, get real-time AI insights, parse recei
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 AI Finance Tracker/
@@ -67,7 +67,7 @@ AI Finance Tracker/
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 
@@ -105,7 +105,7 @@ Open **http://localhost:3000**
 
 ---
 
-## 🔑 Environment Variables
+##  Environment Variables
 
 | Variable | Description | Required |
 |---|---|---|
@@ -126,7 +126,7 @@ Open **http://localhost:3000**
 
 ---
 
-## 📡 API Endpoints (`/api/v1`)
+##  API Endpoints (`/api/v1`)
 
 ### Auth
 | Method | Path | Description |
@@ -170,7 +170,7 @@ Open **http://localhost:3000**
 
 ---
 
-## 🗄️ Database Migrations
+##  Database Migrations
 
 Run in order before starting the server:
 
@@ -183,7 +183,7 @@ psql $DATABASE_URL -f backend/migrations/002_notification_enhancements.sql
 
 ---
 
-## 🤝 Tech Stack
+##  Tech Stack
 
 **Backend:** Go 1.21 · Gin · GORM · PostgreSQL · Redis · Asynq · Gemini AI · JWT · Prometheus · Zap Logger
 
