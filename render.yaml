@@ -44,3 +44,15 @@ services:
         sync: false
       - key: STORAGE_TYPE
         value: local
+
+  - type: web
+    name: ai-finance-tracker-frontend
+    runtime: docker
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
