@@ -150,8 +150,8 @@ func (uc *IncomeUseCase) Delete(ctx context.Context, userID, incomeID string) er
 	return nil
 }
 
-// List returns paginated income records for the given date range.
-func (uc *IncomeUseCase) List(ctx context.Context, userID string, from, to time.Time, page, limit int) ([]*dto.IncomeDTO, int64, error) {
+// List returns paginated income records with optional source/category filters.
+func (uc *IncomeUseCase) List(ctx context.Context, userID string, from, to time.Time, source, category string, page, limit int) ([]*dto.IncomeDTO, int64, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -162,13 +162,12 @@ func (uc *IncomeUseCase) List(ctx context.Context, userID string, from, to time.
 	var err error
 
 	if !from.IsZero() && !to.IsZero() {
-		// Date-range filtered (no pagination from repo layer – paginate in memory)
+		// Date-range filtered – paginate in memory
 		incomes, err = uc.incomes.GetByDateRange(ctx, userID, from, to)
 		if err != nil {
 			return nil, 0, err
 		}
 		total = int64(len(incomes))
-		// Apply offset/limit manually
 		start := offset
 		if start > len(incomes) {
 			start = len(incomes)
@@ -179,7 +178,7 @@ func (uc *IncomeUseCase) List(ctx context.Context, userID string, from, to time.
 		}
 		incomes = incomes[start:end]
 	} else {
-		incomes, total, err = uc.incomes.GetByUserID(ctx, userID, limit, offset)
+		incomes, total, err = uc.incomes.Search(ctx, userID, source, category, limit, offset)
 		if err != nil {
 			return nil, 0, err
 		}

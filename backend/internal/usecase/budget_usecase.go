@@ -3,6 +3,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/priyanjul/ai-finance-tracker/internal/domain"
@@ -115,7 +116,7 @@ func (uc *BudgetUseCase) Delete(ctx context.Context, userID, budgetID string) er
 }
 
 // List returns all active budgets for the user in the given year/month, enriched with spending.
-func (uc *BudgetUseCase) List(ctx context.Context, userID string, year, month int) ([]*dto.BudgetStatusDTO, error) {
+func (uc *BudgetUseCase) List(ctx context.Context, userID string, year, month int, category string) ([]*dto.BudgetStatusDTO, error) {
 	budgets, err := uc.budgets.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -124,6 +125,9 @@ func (uc *BudgetUseCase) List(ctx context.Context, userID string, year, month in
 	out := make([]*dto.BudgetStatusDTO, 0, len(budgets))
 	for _, b := range budgets {
 		if !b.IsActive {
+			continue
+		}
+		if category != "" && !strings.EqualFold(string(b.Category), category) {
 			continue
 		}
 		bCopy := b

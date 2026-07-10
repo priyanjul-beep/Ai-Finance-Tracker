@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -194,6 +195,22 @@ func (r *IncomeRepo) GetByUserID(ctx context.Context, userID string, limit, offs
 	)
 	base := r.db.WithContext(ctx).Model(&domain.Income{}).Where("user_id = ?", userID)
 	base.Count(&total)
+	err := base.Order("date DESC").Limit(limit).Offset(offset).Find(&rows).Error
+	return rows, total, err
+}
+func (r *IncomeRepo) Search(ctx context.Context, userID, source, category string, limit, offset int) ([]domain.Income, int64, error) {
+	var (
+		rows  []domain.Income
+		total int64
+	)
+	base := r.db.WithContext(ctx).Model(&domain.Income{}).Where("user_id = ?", userID)
+	if source != "" {
+		base = base.Where("LOWER(source) LIKE ?", "%"+strings.ToLower(source)+"%")
+	}
+	if category != "" {
+		base = base.Where("LOWER(category) = ?", strings.ToLower(category))
+	}
+	base.Session(&gorm.Session{}).Count(&total)
 	err := base.Order("date DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, total, err
 }

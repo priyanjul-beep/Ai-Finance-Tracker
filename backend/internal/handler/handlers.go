@@ -316,12 +316,15 @@ func (h *IncomeHandler) List(c *gin.Context) {
 	if t := c.Query("to"); t != "" {
 		to, _ = time.Parse(time.RFC3339, t)
 	}
-	results, total, err := h.svc.List(c.Request.Context(), userID, from, to, p.Page, p.Limit)
+	source   := c.Query("source")
+	category := c.Query("category")
+	results, total, err := h.svc.List(c.Request.Context(), userID, from, to, source, category, p.Page, p.Limit)
 	if err != nil {
 		abortServerError(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": results, "total": total, "page": p.Page, "limit": p.Limit})
+	totalPages := (int(total) + p.Limit - 1) / p.Limit
+	c.JSON(http.StatusOK, gin.H{"data": results, "pagination": gin.H{"total": total, "total_pages": totalPages, "page": p.Page, "limit": p.Limit}})
 }
 
 func (h *IncomeHandler) Update(c *gin.Context) {
@@ -384,7 +387,8 @@ func (h *BudgetHandler) List(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	year, _ := strconv.Atoi(c.DefaultQuery("year", "0"))
 	month, _ := strconv.Atoi(c.DefaultQuery("month", "0"))
-	result, err := h.svc.List(c.Request.Context(), userID, year, month)
+	category := c.Query("category")
+	result, err := h.svc.List(c.Request.Context(), userID, year, month, category)
 	if err != nil {
 		abortServerError(c, err.Error())
 		return

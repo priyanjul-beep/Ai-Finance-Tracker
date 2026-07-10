@@ -64,6 +64,7 @@ type IncomeRepository interface {
 	Create(ctx context.Context, income *domain.Income) error
 	GetByID(ctx context.Context, id string) (*domain.Income, error)
 	GetByUserID(ctx context.Context, userID string, limit, offset int) ([]domain.Income, int64, error)
+	Search(ctx context.Context, userID, source, category string, limit, offset int) ([]domain.Income, int64, error)
 	Update(ctx context.Context, income *domain.Income) error
 	Delete(ctx context.Context, id string) error
 	GetByDateRange(ctx context.Context, userID string, from, to time.Time) ([]domain.Income, error)
@@ -190,7 +191,7 @@ type ExpenseService interface {
 type IncomeService interface {
 	Create(ctx context.Context, userID string, req dto.CreateIncomeRequest) (*dto.IncomeDTO, error)
 	GetByID(ctx context.Context, userID, id string) (*dto.IncomeDTO, error)
-	List(ctx context.Context, userID string, from, to time.Time, page, limit int) ([]*dto.IncomeDTO, int64, error)
+	List(ctx context.Context, userID string, from, to time.Time, source, category string, page, limit int) ([]*dto.IncomeDTO, int64, error)
 	Update(ctx context.Context, userID, id string, req dto.UpdateIncomeRequest) (*dto.IncomeDTO, error)
 	Delete(ctx context.Context, userID, id string) error
 	GetMonthlyTotal(ctx context.Context, userID string, year, month int) (float64, error)
@@ -200,7 +201,7 @@ type IncomeService interface {
 type BudgetService interface {
 	Create(ctx context.Context, userID string, req dto.CreateBudgetRequest) (*dto.BudgetStatusDTO, error)
 	GetByID(ctx context.Context, userID, id string) (*dto.BudgetStatusDTO, error)
-	List(ctx context.Context, userID string, year, month int) ([]*dto.BudgetStatusDTO, error)
+	List(ctx context.Context, userID string, year, month int, category string) ([]*dto.BudgetStatusDTO, error)
 	Update(ctx context.Context, userID, id string, req dto.UpdateBudgetRequest) (*dto.BudgetStatusDTO, error)
 	Delete(ctx context.Context, userID, id string) error
 }
