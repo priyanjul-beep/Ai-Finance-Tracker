@@ -8,6 +8,8 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { useIncomeList, useDeleteIncome } from "@/hooks/useExpenses";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -24,16 +26,31 @@ const CATEGORY_COLORS: Record<string, string> = {
   Other: "bg-gray-100 text-gray-700",
 };
 
+const LIMIT = 10;
+
+function pageWindow(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "…")[] = [1];
+  if (current > 3) pages.push("…");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("…");
+  pages.push(total);
+  return pages;
+}
+
 export default function IncomePage() {
   const [page, setPage] = useState(1);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useIncomeList({ page, limit: 10 });
+  const { data, isLoading } = useIncomeList({ page, limit: LIMIT });
   const { mutate: deleteIncome, isPending: isDeleting } = useDeleteIncome();
 
-  const incomes = data?.data ?? [];
+  const incomes    = data?.data        ?? [];
+  const total      = data?.total       ?? 0;
   const totalPages = data?.total_pages ?? 1;
-  const total = data?.total ?? 0;
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * LIMIT + 1;
+  const rangeEnd   = Math.min(page * LIMIT, total);
 
   return (
     <div className="space-y-6">
@@ -122,25 +139,40 @@ export default function IncomePage() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
+      {total > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm">
           <p className="text-muted-foreground">
-            Page {page} of {totalPages}
+            Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of{" "}
+            <span className="font-medium text-foreground">{total}</span> entries
           </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
-            >
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(1)} disabled={page === 1} aria-label="First page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
-            >
+            {pageWindow(page, totalPages).map((p, i) =>
+              p === "…" ? (
+                <span key={`e-${i}`} className="flex h-8 w-8 items-center justify-center text-muted-foreground select-none">…</span>
+              ) : (
+                <button key={p} onClick={() => setPage(p)}
+                  className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg border px-2 transition-colors font-medium ${
+                    p === page ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted text-foreground"
+                  }`}>
+                  {p}
+                </button>
+              )
+            )}
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} aria-label="Next page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               <ChevronRight className="h-4 w-4" />
+            </button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages} aria-label="Last page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <ChevronsRight className="h-4 w-4" />
             </button>
           </div>
         </div>

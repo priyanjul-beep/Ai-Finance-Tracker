@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Loader2, Trash2, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import {
+  Plus, Loader2, Trash2, AlertTriangle, CheckCircle, XCircle,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+} from "lucide-react";
 import { useBudgets, useDeleteBudget } from "@/hooks/useExpenses";
 import { formatCurrency } from "@/lib/utils";
 
@@ -14,19 +17,37 @@ const MONTHS = [
 const currentYear  = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
+const PAGE_SIZE = 6;
+
 const STATUS_CONFIG = {
   "on-track":    { icon: CheckCircle,    color: "text-green-600",  bg: "bg-green-100",  bar: "bg-green-500",  label: "On Track"    },
   "warning":     { icon: AlertTriangle,  color: "text-yellow-600", bg: "bg-yellow-100", bar: "bg-yellow-500", label: "Warning"     },
   "over-budget": { icon: XCircle,        color: "text-red-600",    bg: "bg-red-100",    bar: "bg-red-500",    label: "Over Budget" },
 };
 
+function pageWindow(current: number, total: number): (number | "\u2026")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "\u2026")[] = [1];
+  if (current > 3) pages.push("\u2026");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push("\u2026");
+  pages.push(total);
+  return pages;
+}
+
 export default function BudgetsPage() {
   const [selectedYear,  setSelectedYear]  = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const { data: budgets = [], isLoading } = useBudgets(selectedYear, selectedMonth);
   const { mutate: deleteBudget, isPending: isDeleting } = useDeleteBudget();
+
+  const totalPages  = Math.max(1, Math.ceil(budgets.length / PAGE_SIZE));
+  const pagedBudgets = budgets.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rangeStart  = budgets.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd    = Math.min(page * PAGE_SIZE, budgets.length);
 
   const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
@@ -55,7 +76,7 @@ export default function BudgetsPage() {
       <div className="flex items-center gap-3">
         <select
           value={selectedMonth}
-          onChange={(e) => setSelectedMonth(Number(e.target.value))}
+          onChange={(e) => { setSelectedMonth(Number(e.target.value)); setPage(1); }}
           className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
         >
           {MONTHS.map((m, i) => (
@@ -64,7 +85,7 @@ export default function BudgetsPage() {
         </select>
         <select
           value={selectedYear}
-          onChange={(e) => setSelectedYear(Number(e.target.value))}
+          onChange={(e) => { setSelectedYear(Number(e.target.value)); setPage(1); }}
           className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
         >
           {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
@@ -105,7 +126,7 @@ export default function BudgetsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {budgets.map((budget) => {
+          {pagedBudgets.map((budget) => {
             const status = (budget.status ?? "on-track") as keyof typeof STATUS_CONFIG;
             const cfg    = STATUS_CONFIG[status] ?? STATUS_CONFIG["on-track"];
             const Icon   = cfg.icon;
@@ -165,6 +186,46 @@ export default function BudgetsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {budgets.length > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm">
+          <p className="text-muted-foreground">
+            Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of{" "}
+            <span className="font-medium text-foreground">{budgets.length}</span> budgets
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(1)} disabled={page === 1} aria-label="First page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {pageWindow(page, totalPages).map((p, i) =>
+              p === "…" ? (
+                <span key={`e-${i}`} className="flex h-8 w-8 items-center justify-center text-muted-foreground select-none">…</span>
+              ) : (
+                <button key={p} onClick={() => setPage(p)}
+                  className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg border px-2 transition-colors font-medium ${
+                    p === page ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted text-foreground"
+                  }`}>
+                  {p}
+                </button>
+              )
+            )}
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} aria-label="Next page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages} aria-label="Last page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 

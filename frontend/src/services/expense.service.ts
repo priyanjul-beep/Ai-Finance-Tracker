@@ -114,10 +114,20 @@ export const incomeService = {
     return res.data;
   },
   list: async (filters: import("@/types").IncomeFilters = {}) => {
-    const res = await api.get<PaginatedResponse<import("@/types").Income>>(
-      `/income${buildQueryString(filters)}`
-    );
-    return res.data;
+    const res = await api.get<{
+      data: import("@/types").Income[];
+      pagination?: { page: number; limit: number; total: number; total_pages: number };
+      total?: number; total_pages?: number; page?: number; limit?: number;
+    }>(`/income${buildQueryString(filters)}`);
+    const raw = res.data;
+    const p = raw.pagination;
+    return {
+      data:        raw.data ?? [],
+      total:       p?.total       ?? raw.total       ?? 0,
+      total_pages: p?.total_pages ?? raw.total_pages ?? 1,
+      page:        p?.page        ?? raw.page        ?? 1,
+      limit:       p?.limit       ?? raw.limit       ?? 10,
+    } as PaginatedResponse<import("@/types").Income>;
   },
   update: async (id: string, data: import("@/types").UpdateIncomeRequest) => {
     const res = await api.put<import("@/types").Income>(`/income/${id}`, data);
