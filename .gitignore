@@ -101,6 +101,8 @@ docker-compose.local.yml
 *.sqlite3
 uploads/
 storage/
+# Allow the Go storage package (not a data directory)
+!backend/pkg/storage/
 
 # ─── Testing / Coverage ───────────────────────────────────────────────────────
 coverage/
