@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, Plus } from "lucide-react";
+import { Bell, Plus } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/utils";
@@ -25,16 +25,6 @@ export function Header({ title }: HeaderProps) {
 
       {/* Right actions */}
       <div className="flex items-center gap-3">
-        {/* Global search */}
-        <div className="relative hidden md:flex items-center">
-          <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search expenses…"
-            className="h-9 w-64 rounded-lg border border-input bg-muted/50 pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-          />
-        </div>
-
         {/* Quick add button */}
         <Link
           href="/expenses/new"

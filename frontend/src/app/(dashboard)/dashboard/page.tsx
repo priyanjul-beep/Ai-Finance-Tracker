@@ -55,6 +55,7 @@ export default function DashboardPage() {
         <StatCard
           title="Savings Rate"
           value={dashboard?.savings_rate ?? 0}
+          isPercent
           description="of income saved this month"
           icon={<PiggyBank className="h-5 w-5" />}
           loading={isLoading}

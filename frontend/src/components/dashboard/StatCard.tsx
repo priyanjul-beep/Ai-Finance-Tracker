@@ -14,6 +14,7 @@ interface StatCardProps {
   trend?: "up" | "down" | "neutral";
   className?: string;
   loading?: boolean;
+  isPercent?: boolean;   // when true, render as "XX%" instead of currency
 }
 
 export function StatCard({
@@ -26,6 +27,7 @@ export function StatCard({
   trend,
   className,
   loading = false,
+  isPercent = false,
 }: StatCardProps) {
   const trendColor =
     trend === "up"
@@ -62,7 +64,7 @@ export function StatCard({
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground font-medium">{title}</p>
           <p className="text-2xl font-bold tabular-nums">
-            {formatCurrency(value, currency)}
+            {isPercent ? `${value.toFixed(1)}%` : formatCurrency(value, currency)}
           </p>
           {description && (
             <p className="text-xs text-muted-foreground">{description}</p>

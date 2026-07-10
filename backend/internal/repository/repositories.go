@@ -146,7 +146,7 @@ func (r *ExpenseRepo) SumByCategory(ctx context.Context, userID string, from, to
 	err := r.db.WithContext(ctx).
 		Model(&domain.Expense{}).
 		Select("category, SUM(amount) as amount").
-		Where("user_id = ? AND date BETWEEN ? AND ?", userID, from, to).
+		Where("user_id = ? AND date BETWEEN ? AND ? AND expense_type = 'spend'", userID, from, to).
 		Group("category").
 		Scan(&rows).Error
 	return rows, err
@@ -156,7 +156,7 @@ func (r *ExpenseRepo) SumByMerchant(ctx context.Context, userID string, from, to
 	err := r.db.WithContext(ctx).
 		Model(&domain.Expense{}).
 		Select("merchant, SUM(amount) as amount").
-		Where("user_id = ? AND date BETWEEN ? AND ?", userID, from, to).
+		Where("user_id = ? AND date BETWEEN ? AND ? AND expense_type = 'spend'", userID, from, to).
 		Group("merchant").Order("amount DESC").Limit(10).
 		Scan(&rows).Error
 	return rows, err
