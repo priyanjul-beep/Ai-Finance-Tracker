@@ -121,10 +121,10 @@ export function useDeleteIncome() {
 
 // ─── Budgets ─────────────────────────────────────────────────────────────────
 
-export function useBudgets(year?: number, month?: number) {
+export function useBudgets(year?: number, month?: number, category?: string) {
   return useQuery({
-    queryKey: queryKeys.budgets.list(year, month),
-    queryFn: () => budgetService.list(year, month),
+    queryKey: queryKeys.budgets.list(year, month, category),
+    queryFn: () => budgetService.list(year, month, category),
     staleTime: 60_000,
   });
 }

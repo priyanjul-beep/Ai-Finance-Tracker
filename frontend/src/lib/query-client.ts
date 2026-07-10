@@ -48,8 +48,8 @@ export const queryKeys = {
   // Budgets
   budgets: {
     all: () => ["budgets"] as const,
-    list: (year?: number, month?: number) =>
-      ["budgets", "list", year, month] as const,
+    list: (year?: number, month?: number, category?: string) =>
+      ["budgets", "list", year, month, category] as const,
     detail: (id: string) => ["budgets", "detail", id] as const,
   },
 

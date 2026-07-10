@@ -62,21 +62,33 @@ export function formatNumber(value: number): string {
 
 // ─── Category utilities ──────────────────────────────────────────────────────
 export const CATEGORY_COLORS: Record<string, string> = {
-  food: "#f97316",
-  transport: "#3b82f6",
-  travel: "#06b6d4",
-  shopping: "#a855f7",
-  entertainment: "#ec4899",
-  health: "#22c55e",
-  education: "#eab308",
-  utilities: "#64748b",
-  subscription: "#8b5cf6",
-  investment: "#10b981",
-  salary: "#059669",
-  freelance: "#0ea5e9",
-  business: "#6366f1",
-  rental: "#f59e0b",
-  others: "#9ca3af",
+  // Full API category names (looked up via .toLowerCase())
+  "food & dining":  "#f97316",
+  "transportation": "#3b82f6",
+  "shopping":       "#ec4899",
+  "entertainment":  "#a855f7",
+  "healthcare":     "#22c55e",
+  "housing":        "#eab308",
+  "utilities":      "#06b6d4",
+  "travel":         "#6366f1",
+  "education":      "#14b8a6",
+  "personal care":  "#f43f5e",
+  "subscriptions":  "#8b5cf6",
+  "other":          "#94a3b8",
+  // Short / legacy AI token keys
+  food:          "#f97316",
+  transport:     "#3b82f6",
+  health:        "#22c55e",
+  subscription:  "#8b5cf6",
+  investment:    "#0ea5e9",
+  salary:        "#10b981",
+  freelance:     "#38bdf8",
+  business:      "#818cf8",
+  rental:        "#fb923c",
+  interest:      "#2dd4bf",
+  dividend:      "#a3e635",
+  gift:          "#f472b6",
+  others:        "#94a3b8",
 };
 
 export function getCategoryColor(category: string): string {

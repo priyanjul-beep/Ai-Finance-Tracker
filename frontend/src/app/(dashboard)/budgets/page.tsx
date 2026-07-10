@@ -19,6 +19,12 @@ const currentMonth = new Date().getMonth() + 1;
 
 const PAGE_SIZE = 6;
 
+const BUDGET_CATEGORIES = [
+  "Food & Dining","Transportation","Shopping","Entertainment",
+  "Healthcare","Housing","Utilities","Travel","Education",
+  "Personal Care","Subscriptions","Other",
+];
+
 const STATUS_CONFIG = {
   "on-track":    { icon: CheckCircle,    color: "text-green-600",  bg: "bg-green-100",  bar: "bg-green-500",  label: "On Track"    },
   "warning":     { icon: AlertTriangle,  color: "text-yellow-600", bg: "bg-yellow-100", bar: "bg-yellow-500", label: "Warning"     },
@@ -40,14 +46,15 @@ export default function BudgetsPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [categoryFilter, setCategoryFilter] = useState("");
 
-  const { data: budgets = [], isLoading } = useBudgets(selectedYear, selectedMonth);
+  const { data: budgets = [], isLoading } = useBudgets(selectedYear, selectedMonth, categoryFilter);
   const { mutate: deleteBudget, isPending: isDeleting } = useDeleteBudget();
 
-  const totalPages  = Math.max(1, Math.ceil(budgets.length / PAGE_SIZE));
+  const totalPages   = Math.max(1, Math.ceil(budgets.length / PAGE_SIZE));
   const pagedBudgets = budgets.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const rangeStart  = budgets.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd    = Math.min(page * PAGE_SIZE, budgets.length);
+  const rangeStart   = budgets.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd     = Math.min(page * PAGE_SIZE, budgets.length);
 
   const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
@@ -72,8 +79,8 @@ export default function BudgetsPage() {
         </Link>
       </div>
 
-      {/* Month / Year selector */}
-      <div className="flex items-center gap-3">
+      {/* Month / Year selector + Search */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
         <select
           value={selectedMonth}
           onChange={(e) => { setSelectedMonth(Number(e.target.value)); setPage(1); }}
@@ -90,6 +97,18 @@ export default function BudgetsPage() {
         >
           {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
             <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+
+        {/* Category filter */}
+        <select
+          value={categoryFilter}
+          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+          className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary min-w-[160px]"
+        >
+          <option value="">All Categories</option>
+          {BUDGET_CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
       </div>

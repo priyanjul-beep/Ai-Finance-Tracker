@@ -147,8 +147,8 @@ export const budgetService = {
     const res = await api.get<import("@/types").BudgetStatus>(`/budgets/${id}`);
     return res.data;
   },
-  list: async (year?: number, month?: number) => {
-    const qs = buildQueryString({ year, month });
+  list: async (year?: number, month?: number, category?: string) => {
+    const qs = buildQueryString({ year, month, category });
     const res = await api.get<{ budgets: import("@/types").BudgetStatus[] }>(
       `/budgets${qs}`
     );

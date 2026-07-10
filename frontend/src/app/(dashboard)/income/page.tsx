@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -10,9 +10,16 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Search,
+  X,
 } from "lucide-react";
 import { useIncomeList, useDeleteIncome } from "@/hooks/useExpenses";
 import { formatCurrency, formatDate } from "@/lib/utils";
+
+const INCOME_CATEGORIES = [
+  "Salary", "Freelance", "Business", "Investment",
+  "Rental", "Interest", "Dividend", "Gift", "Other",
+];
 
 const CATEGORY_COLORS: Record<string, string> = {
   Salary: "bg-green-100 text-green-700",
@@ -28,12 +35,12 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const LIMIT = 10;
 
-function pageWindow(current: number, total: number): (number | "…")[] {
+function pageWindow(current: number, total: number): (number | "\u2026")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages: (number | "…")[] = [1];
-  if (current > 3) pages.push("…");
+  const pages: (number | "\u2026")[] = [1];
+  if (current > 3) pages.push("\u2026");
   for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
-  if (current < total - 2) pages.push("…");
+  if (current < total - 2) pages.push("\u2026");
   pages.push(total);
   return pages;
 }
@@ -41,8 +48,32 @@ function pageWindow(current: number, total: number): (number | "…")[] {
 export default function IncomePage() {
   const [page, setPage] = useState(1);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // search state (committed = sent to API)
+  const [sourceInput,    setSourceInput]    = useState("");
+  const [categoryInput,  setCategoryInput]  = useState("");
+  const [sourceFilter,   setSourceFilter]   = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data, isLoading } = useIncomeList({ page, limit: LIMIT });
+  const applySearch = () => {
+    setSourceFilter(sourceInput);
+    setCategoryFilter(categoryInput);
+    setPage(1);
+  };
+
+  const clearSearch = () => {
+    setSourceInput(""); setCategoryInput("");
+    setSourceFilter(""); setCategoryFilter("");
+    setPage(1);
+  };
+
+  const hasFilter = sourceFilter !== "" || categoryFilter !== "";
+
+  const { data, isLoading } = useIncomeList({
+    page, limit: LIMIT,
+    source:   sourceFilter   || undefined,
+    category: categoryFilter || undefined,
+  });
   const { mutate: deleteIncome, isPending: isDeleting } = useDeleteIncome();
 
   const incomes    = data?.data        ?? [];
@@ -67,6 +98,52 @@ export default function IncomePage() {
           <Plus className="h-4 w-4" />
           Add Income
         </Link>
+      </div>
+
+      {/* Search bar */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {/* Source text input */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search by source…"
+            value={sourceInput}
+            onChange={(e) => setSourceInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applySearch()}
+            className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        {/* Category dropdown */}
+        <select
+          value={categoryInput}
+          onChange={(e) => setCategoryInput(e.target.value)}
+          className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary min-w-[160px]"
+        >
+          <option value="">All Categories</option>
+          {INCOME_CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {/* Search button */}
+        <button
+          onClick={applySearch}
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Search className="h-4 w-4" />
+          Search
+        </button>
+        {/* Clear button */}
+        {hasFilter && (
+          <button
+            onClick={clearSearch}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <X className="h-4 w-4" />
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -202,7 +279,7 @@ export default function IncomePage() {
               <button
                 disabled={isDeleting}
                 onClick={() =>
-                  deleteIncome(confirmDeleteId, {
+                  deleteIncome(confirmDeleteId!, {
                     onSuccess: () => setConfirmDeleteId(null),
                   })
                 }
