@@ -46,6 +46,7 @@ export function useCreateExpense() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.all() });
       qc.invalidateQueries({ queryKey: queryKeys.analytics.dashboard() });
+      qc.invalidateQueries({ queryKey: queryKeys.budgets.all() });
       toast.success("Expense added");
     },
   });
@@ -59,6 +60,7 @@ export function useUpdateExpense(id: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.all() });
       qc.invalidateQueries({ queryKey: queryKeys.analytics.dashboard() });
+      qc.invalidateQueries({ queryKey: queryKeys.budgets.all() });
       toast.success("Expense updated");
     },
   });
@@ -71,6 +73,7 @@ export function useDeleteExpense() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.expenses.all() });
       qc.invalidateQueries({ queryKey: queryKeys.analytics.dashboard() });
+      qc.invalidateQueries({ queryKey: queryKeys.budgets.all() });
       toast.success("Expense deleted");
     },
   });

@@ -3,7 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000,          // 1 minute
+      staleTime: 0,                  // always refetch on mount (page navigation)
       gcTime: 5 * 60 * 1000,         // 5 minutes (formerly cacheTime)
       retry: (failureCount, error) => {
         // Don't retry on 4xx errors
@@ -14,6 +14,7 @@ export const queryClient = new QueryClient({
         return failureCount < 2;
       },
       refetchOnWindowFocus: false,
+      refetchOnMount: true,
     },
     mutations: {
       retry: 0,
