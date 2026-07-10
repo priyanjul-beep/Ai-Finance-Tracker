@@ -5,15 +5,33 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppStore } from "@/store/app.store";
 import { formatDate } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/services/api";
 
 interface HeaderProps {
   title?: string;
+}
+
+async function fetchUnreadCount(): Promise<number> {
+  try {
+    const res = await api.get("/notifications/unread-count");
+    return res.data?.count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function Header({ title }: HeaderProps) {
   const { user } = useAuth();
   const { toggleMobileSidebar } = useAppStore();
   const today = formatDate(new Date());
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notifications", "unread-count"],
+    queryFn: fetchUnreadCount,
+    refetchInterval: 30_000, // poll every 30 s
+    staleTime: 20_000,
+  });
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-4 md:px-6">
@@ -45,15 +63,18 @@ export function Header({ title }: HeaderProps) {
           <span className="hidden sm:inline">Add Expense</span>
         </Link>
 
-        {/* Notifications */}
+        {/* Notifications bell */}
         <Link
           href="/notifications"
           className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border hover:bg-muted transition-colors"
+          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
         >
           <Bell className="h-4 w-4" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
-            0
-          </span>
+          {unreadCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </Link>
 
         {/* Avatar */}
@@ -64,3 +85,4 @@ export function Header({ title }: HeaderProps) {
     </header>
   );
 }
+

@@ -346,14 +346,39 @@ export interface FinancialHealthScore {
 
 // ─── Notification ────────────────────────────────────────────────────────────
 
+export type NotificationType =
+  | "welcome"
+  | "budget_alert"
+  | "budget_exceeded"
+  | "budget_warning"
+  | "monthly_summary"
+  | "weekly_summary"
+  | "expense_reminder"
+  | "goal_achievement"
+  | "general";
+
+export type NotificationPriority = "low" | "medium" | "high" | "critical";
+
 export interface Notification {
   id: string;
   user_id: string;
   title: string;
   message: string;
-  type: string;
+  type: NotificationType | string;
+  priority: NotificationPriority | string;
   is_read: boolean;
+  metadata?: Record<string, unknown>;
   created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+  unread_count: number;
 }
 
 // ─── Filters / params ────────────────────────────────────────────────────────

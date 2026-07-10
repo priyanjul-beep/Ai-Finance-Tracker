@@ -353,13 +353,31 @@ type UpdateTagRequest struct {
 // ─── Notification ─────────────────────────────────────────────────────────────
 
 type NotificationDTO struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	Type      string    `json:"type"`
-	IsRead    bool      `json:"is_read"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string          `json:"id"`
+	UserID    string          `json:"user_id"`
+	Title     string          `json:"title"`
+	Message   string          `json:"message"`
+	Type      string          `json:"type"`
+	Priority  string          `json:"priority"`
+	IsRead    bool            `json:"is_read"`
+	Metadata  interface{}     `json:"metadata,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+// UnreadCountResponse is the response for the unread notification count endpoint.
+type UnreadCountResponse struct {
+	Count int64 `json:"count"`
+}
+
+// NotificationListResponse wraps a paginated notification list.
+type NotificationListResponse struct {
+	Notifications []NotificationDTO `json:"notifications"`
+	Total         int64             `json:"total"`
+	Page          int               `json:"page"`
+	Limit         int               `json:"limit"`
+	TotalPages    int               `json:"total_pages"`
+	UnreadCount   int64             `json:"unread_count"`
 }
 
 // ─── Analytics / Dashboard ────────────────────────────────────────────────────

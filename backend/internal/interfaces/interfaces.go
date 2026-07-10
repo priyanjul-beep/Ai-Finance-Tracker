@@ -115,10 +115,13 @@ type TagRepository interface {
 // NotificationRepository abstracts persistence for Notification.
 type NotificationRepository interface {
 	Create(ctx context.Context, n *domain.Notification) error
+	GetByID(ctx context.Context, id string) (*domain.Notification, error)
 	GetByUserID(ctx context.Context, userID string, limit, offset int) ([]domain.Notification, int64, error)
-	MarkAsRead(ctx context.Context, id string) error
+	GetByUserIDFiltered(ctx context.Context, userID, notifType string, limit, offset int) ([]domain.Notification, int64, error)
+	GetUnreadCount(ctx context.Context, userID string) (int64, error)
+	MarkAsRead(ctx context.Context, id, userID string) error
 	MarkAllAsRead(ctx context.Context, userID string) error
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id, userID string) error
 }
 
 // AuditLogRepository writes append-only audit records.
@@ -264,6 +267,7 @@ type QueueService interface {
 	EnqueueEmail(ctx context.Context, to, subject, body string) error
 	EnqueueBudgetCheck(ctx context.Context, userID, category string, amount float64) error
 	EnqueueRecurringDetect(ctx context.Context, userID string) error
+	EnqueueWelcomeNotif(ctx context.Context, userID, email, name string) error
 }
 
 // StorageService abstracts local and cloud file storage.
@@ -281,6 +285,10 @@ type EmailService interface {
 	SendWeeklySummary(ctx context.Context, to, summary string) error
 	SendBudgetAlert(ctx context.Context, to, message string) error
 	SendWelcome(ctx context.Context, to, name string) error
+	// HTML templated emails
+	SendWelcomeHTML(ctx context.Context, to, name string) error
+	SendBudgetWarningHTML(ctx context.Context, to, name, category string, budgetAmount, spent, remaining, threshold float64, month, year, daysLeft int) error
+	SendBudgetExceededHTML(ctx context.Context, to, name, category string, budgetAmount, spent, overspent float64) error
 }
 
 // Logger is a structured logger abstraction.

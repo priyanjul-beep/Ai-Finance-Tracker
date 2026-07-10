@@ -407,6 +407,15 @@ func NewNotification(db *gorm.DB) *NotificationRepo { return &NotificationRepo{d
 func (r *NotificationRepo) Create(ctx context.Context, n *domain.Notification) error {
 	return r.db.WithContext(ctx).Create(n).Error
 }
+
+func (r *NotificationRepo) GetByID(ctx context.Context, id string) (*domain.Notification, error) {
+	var n domain.Notification
+	if err := r.db.WithContext(ctx).First(&n, "id = ?", id).Error; err != nil {
+		return nil, notFound("notification", err)
+	}
+	return &n, nil
+}
+
 func (r *NotificationRepo) GetByUserID(ctx context.Context, userID string, limit, offset int) ([]domain.Notification, int64, error) {
 	var (
 		rows  []domain.Notification
@@ -417,14 +426,40 @@ func (r *NotificationRepo) GetByUserID(ctx context.Context, userID string, limit
 	err := base.Order("created_at DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, total, err
 }
-func (r *NotificationRepo) MarkAsRead(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Model(&domain.Notification{}).Where("id = ?", id).Update("is_read", true).Error
+
+func (r *NotificationRepo) GetByUserIDFiltered(ctx context.Context, userID, notifType string, limit, offset int) ([]domain.Notification, int64, error) {
+	var (
+		rows  []domain.Notification
+		total int64
+	)
+	q := r.db.WithContext(ctx).Model(&domain.Notification{}).Where("user_id = ?", userID)
+	if notifType != "" {
+		q = q.Where("type = ?", notifType)
+	}
+	q.Count(&total)
+	err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&rows).Error
+	return rows, total, err
 }
+
+func (r *NotificationRepo) GetUnreadCount(ctx context.Context, userID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&domain.Notification{}).
+		Where("user_id = ? AND is_read = false", userID).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *NotificationRepo) MarkAsRead(ctx context.Context, id, userID string) error {
+	return r.db.WithContext(ctx).Model(&domain.Notification{}).
+		Where("id = ? AND user_id = ?", id, userID).Update("is_read", true).Error
+}
+
 func (r *NotificationRepo) MarkAllAsRead(ctx context.Context, userID string) error {
 	return r.db.WithContext(ctx).Model(&domain.Notification{}).Where("user_id = ?", userID).Update("is_read", true).Error
 }
-func (r *NotificationRepo) Delete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&domain.Notification{}, "id = ?", id).Error
+
+func (r *NotificationRepo) Delete(ctx context.Context, id, userID string) error {
+	return r.db.WithContext(ctx).Delete(&domain.Notification{}, "id = ? AND user_id = ?", id, userID).Error
 }
 
 // ─── AuditLog ─────────────────────────────────────────────────────────────────

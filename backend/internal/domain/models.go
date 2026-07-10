@@ -219,18 +219,44 @@ func (Tag) TableName() string { return "tags" }
 
 // ─── Notification ─────────────────────────────────────────────────────────────
 
+// NotificationType enumerates all supported notification categories.
+type NotificationType string
+
+const (
+	NotifWelcome         NotificationType = "welcome"
+	NotifBudgetAlert     NotificationType = "budget_alert"
+	NotifBudgetExceeded  NotificationType = "budget_exceeded"
+	NotifBudgetWarning   NotificationType = "budget_warning"
+	NotifMonthlySummary  NotificationType = "monthly_summary"
+	NotifWeeklySummary   NotificationType = "weekly_summary"
+	NotifExpenseReminder NotificationType = "expense_reminder"
+	NotifGoalAchievement NotificationType = "goal_achievement"
+	NotifGeneral         NotificationType = "general"
+)
+
+// NotificationPriority controls the visual urgency level.
+type NotificationPriority string
+
+const (
+	PriorityLow      NotificationPriority = "low"
+	PriorityMedium   NotificationPriority = "medium"
+	PriorityHigh     NotificationPriority = "high"
+	PriorityCritical NotificationPriority = "critical"
+)
+
 // Notification stores in-app notifications for the user.
 type Notification struct {
-	ID        string         `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	UserID    string         `gorm:"index;not null"                                 json:"user_id"`
-	Title     string         `gorm:"not null"                                       json:"title"`
-	Message   string         `json:"message"`
-	Type      string         `json:"type"` // budget_warning | weekly_summary | monthly_report | large_expense | recurring_reminder | low_balance | goal_achieved
-	IsRead    bool           `gorm:"default:false"                                  json:"is_read"`
-	Data      datatypes.JSON `json:"data,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index"                                          json:"-"`
+	ID        string               `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	UserID    string               `gorm:"index;not null"                                 json:"user_id"`
+	Title     string               `gorm:"not null"                                       json:"title"`
+	Message   string               `json:"message"`
+	Type      NotificationType     `gorm:"default:'general'"                              json:"type"`
+	Priority  NotificationPriority `gorm:"default:'low'"                                  json:"priority"`
+	IsRead    bool                 `gorm:"default:false"                                  json:"is_read"`
+	Metadata  datatypes.JSON       `json:"metadata,omitempty"`
+	CreatedAt time.Time            `json:"created_at"`
+	UpdatedAt time.Time            `json:"updated_at"`
+	DeletedAt gorm.DeletedAt       `gorm:"index"                                          json:"-"`
 
 	User User `gorm:"foreignKey:UserID" json:"-"`
 }

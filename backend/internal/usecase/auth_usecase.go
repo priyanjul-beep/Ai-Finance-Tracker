@@ -24,6 +24,7 @@ type AuthUseCase struct {
 	users       interfaces.UserRepository
 	sessions    interfaces.SessionRepository
 	emailSvc    *email.Service
+	queue       interfaces.QueueService
 	jwtSecret   string
 	refreshSec  string
 	jwtExpiry   time.Duration
@@ -37,6 +38,7 @@ func NewAuth(
 	users interfaces.UserRepository,
 	sessions interfaces.SessionRepository,
 	emailSvc *email.Service,
+	queue interfaces.QueueService,
 	jwtSecret, refreshSec string,
 	jwtExpiry, refreshExp time.Duration,
 	appBaseURL string,
@@ -50,7 +52,7 @@ func NewAuth(
 		Endpoint:     google.Endpoint,
 	}
 	return &AuthUseCase{
-		users: users, sessions: sessions, emailSvc: emailSvc,
+		users: users, sessions: sessions, emailSvc: emailSvc, queue: queue,
 		jwtSecret: jwtSecret, refreshSec: refreshSec,
 		jwtExpiry: jwtExpiry, refreshExp: refreshExp,
 		appBaseURL: appBaseURL,
@@ -88,6 +90,11 @@ func (uc *AuthUseCase) Signup(ctx context.Context, req dto.SignupRequest) (*dto.
 	if err := uc.users.Create(ctx, user); err != nil {
 		return nil, fmt.Errorf("signup: create user: %w", err)
 	}
+
+	// Enqueue welcome notification + email job asynchronously
+	go func() {
+		_ = uc.queue.EnqueueWelcomeNotif(context.Background(), user.ID, user.Email, user.Name)
+	}()
 
 	// Send verification email asynchronously (best-effort)
 	link := fmt.Sprintf("%s/api/v1/auth/verify-email/%s", uc.appBaseURL, verifyToken)

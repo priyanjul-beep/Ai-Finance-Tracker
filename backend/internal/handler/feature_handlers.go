@@ -2,13 +2,11 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/priyanjul/ai-finance-tracker/internal/domain"
 	"github.com/priyanjul/ai-finance-tracker/internal/dto"
 	"github.com/priyanjul/ai-finance-tracker/internal/middleware"
 	"github.com/priyanjul/ai-finance-tracker/internal/usecase"
@@ -425,105 +423,68 @@ func (h *TagHandler) RemoveFromExpense(c *gin.Context) {
 // NotificationHandler
 // ─────────────────────────────────────────────────────────────────────────────
 
-// notifRepo is the minimal repository subset needed by the notification handler.
-type notifRepo interface {
-	GetByUserID(ctx context.Context, userID string, limit, offset int) ([]domain.Notification, int64, error)
-	MarkAsRead(ctx context.Context, id string) error
-	MarkAllAsRead(ctx context.Context, userID string) error
-	Delete(ctx context.Context, id string) error
-}
-
 // NotificationHandler handles /notifications routes.
 type NotificationHandler struct {
-	repo notifRepo
+	uc *usecase.NotificationUseCase
 }
 
 // NewNotificationHandler creates a new NotificationHandler.
-func NewNotificationHandler(repo notifRepo) *NotificationHandler {
-	return &NotificationHandler{repo: repo}
+func NewNotificationHandler(uc *usecase.NotificationUseCase) *NotificationHandler {
+	return &NotificationHandler{uc: uc}
 }
 
-// List godoc
-// @Summary      List notifications for current user
-// @Tags         notifications
-// @Security     BearerAuth
-// @Produce      json
-// @Param        page  query int false "Page (default 1)"
-// @Param        limit query int false "Limit (default 20)"
-// @Success      200 {array} dto.NotificationDTO
-// @Router       /notifications [get]
+// List returns a paginated list of notifications for the current user.
 func (h *NotificationHandler) List(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	p := parsePagination(c)
+	notifType := c.Query("type")
 
-	rows, total, err := h.repo.GetByUserID(c.Request.Context(), userID, p.Limit, (p.Page-1)*p.Limit)
+	result, err := h.uc.List(c.Request.Context(), userID, notifType, p.Page, p.Limit)
 	if err != nil {
 		abortServerError(c, err.Error())
 		return
 	}
-
-	out := make([]dto.NotificationDTO, len(rows))
-	for i, n := range rows {
-		out[i] = notifToDTO(n)
-	}
-	c.JSON(http.StatusOK, gin.H{"notifications": out, "total": total, "page": p.Page, "limit": p.Limit})
+	c.JSON(http.StatusOK, result)
 }
 
-// MarkRead godoc
-// @Summary      Mark a notification as read
-// @Tags         notifications
-// @Security     BearerAuth
-// @Param        id path string true "Notification ID"
-// @Success      204
-// @Router       /notifications/{id}/read [patch]
+// UnreadCount returns the number of unread notifications (cached).
+func (h *NotificationHandler) UnreadCount(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+	count, err := h.uc.GetUnreadCount(c.Request.Context(), userID)
+	if err != nil {
+		abortServerError(c, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, dto.UnreadCountResponse{Count: count})
+}
+
+// MarkRead marks a single notification as read.
 func (h *NotificationHandler) MarkRead(c *gin.Context) {
-	if err := h.repo.MarkAsRead(c.Request.Context(), c.Param("id")); err != nil {
+	userID, _ := middleware.GetUserID(c)
+	if err := h.uc.MarkAsRead(c.Request.Context(), c.Param("id"), userID); err != nil {
 		abortNotFound(c, "notification not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-// MarkAllRead godoc
-// @Summary      Mark all notifications as read
-// @Tags         notifications
-// @Security     BearerAuth
-// @Success      204
-// @Router       /notifications/read-all [patch]
+// MarkAllRead marks all notifications as read for the current user.
 func (h *NotificationHandler) MarkAllRead(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
-	if err := h.repo.MarkAllAsRead(c.Request.Context(), userID); err != nil {
+	if err := h.uc.MarkAllAsRead(c.Request.Context(), userID); err != nil {
 		abortServerError(c, err.Error())
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-// Delete godoc
-// @Summary      Delete a notification
-// @Tags         notifications
-// @Security     BearerAuth
-// @Param        id path string true "Notification ID"
-// @Success      204
-// @Router       /notifications/{id} [delete]
+// Delete removes a notification.
 func (h *NotificationHandler) Delete(c *gin.Context) {
-	if err := h.repo.Delete(c.Request.Context(), c.Param("id")); err != nil {
+	userID, _ := middleware.GetUserID(c)
+	if err := h.uc.Delete(c.Request.Context(), c.Param("id"), userID); err != nil {
 		abortNotFound(c, "notification not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-// ─── helper ──────────────────────────────────────────────────────────────────
-
-func notifToDTO(n domain.Notification) dto.NotificationDTO {
-	return dto.NotificationDTO{
-		ID:        n.ID,
-		UserID:    n.UserID,
-		Title:     n.Title,
-		Message:   n.Message,
-		Type:      n.Type,
-		IsRead:    n.IsRead,
-		CreatedAt: n.CreatedAt,
-	}
-}

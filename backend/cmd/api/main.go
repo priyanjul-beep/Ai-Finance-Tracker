@@ -108,6 +108,7 @@ func main() {
 	// ── Use-cases (application services) ─────────────────────────────────────
 	authUC := usecase.NewAuth(
 		userRepo, sessionRepo, emailSvc,
+		queueClient,
 		cfg.JWTSecret, cfg.JWTRefreshSecret,
 		cfg.JWTExpiry, cfg.RefreshTokenExpiry,
 		"http://localhost:"+cfg.ServerPort,
@@ -128,6 +129,7 @@ func main() {
 	goalUC := usecase.NewGoal(goalRepo, auditRepo, redisCache)
 	tagUC  := usecase.NewTag(tagRepo)
 	userUC := usecase.NewUser(userRepo)
+	notifUC := usecase.NewNotification(notifRepo, redisCache)
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
 	authH      := handler.NewAuth(authUC)
@@ -139,7 +141,7 @@ func main() {
 	subH        := handler.NewSubscriptionHandler(subscriptionUC)
 	goalH       := handler.NewGoalHandler(goalUC)
 	tagH        := handler.NewTagHandler(tagUC)
-	notifH      := handler.NewNotificationHandler(notifRepo)
+	notifH      := handler.NewNotificationHandler(notifUC)
 
 	// ── Router ────────────────────────────────────────────────────────────────
 	if cfg.IsProduction() {
@@ -287,14 +289,41 @@ func main() {
 		// Notifications
 		notifs := protected.Group("/notifications")
 		{
-			notifs.GET("",                notifH.List)
-			notifs.PATCH("/:id/read",     notifH.MarkRead)
-			notifs.PATCH("/read-all",     notifH.MarkAllRead)
-			notifs.DELETE("/:id",         notifH.Delete)
+			notifs.GET("",               notifH.List)
+			notifs.GET("/unread-count",  notifH.UnreadCount)
+			notifs.PATCH("/:id/read",    notifH.MarkRead)
+			notifs.PATCH("/read-all",    notifH.MarkAllRead)
+			notifs.DELETE("/:id",        notifH.Delete)
 		}
 	}
 
-	// ── HTTP server with graceful shutdown ────────────────────────────────────
+	// ── Asynq background workers ──────────────────────────────────────────────
+	asynqSrv, err := queue.NewServer(queue.ServerConfig{
+		RedisURL:    cfg.RedisURL,
+		Concurrency: 10,
+	})
+	if err != nil {
+		appLog.Fatal("asynq server init failed", "error", err)
+	}
+
+	workerMux := queue.NewWorkerMux()
+	queue.RegisterWorkers(workerMux, queue.HandlerDeps{
+		AIProvider:  aiProvider,
+		EmailSvc:    emailSvc,
+		NotifRepo:   notifRepo,
+		ExpenseRepo: expenseRepo,
+		BudgetRepo:  budgetRepo,
+		UserRepo:    userRepo,
+		Cache:       redisCache,
+	})
+
+	go func() {
+		appLog.Info("asynq worker starting")
+		if err := asynqSrv.Run(workerMux); err != nil {
+			appLog.Error("asynq worker error", "error", err)
+		}
+	}()
+
 	srv := &http.Server{
 		Addr:         ":" + cfg.ServerPort,
 		Handler:      r,

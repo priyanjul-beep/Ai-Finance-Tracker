@@ -13,16 +13,19 @@ import (
 // ─── Task type constants ───────────────────────────────────────────────────────
 
 const (
-	TypeOCR            = "ocr:process"
-	TypeCategorize     = "categorize:expense"
-	TypeTranscription  = "transcription:process"
-	TypeWeeklySummary  = "summary:weekly"
-	TypeMonthlySummary = "summary:monthly"
-	TypeNotification   = "notification:send"
-	TypeEmail          = "email:send"
-	TypeBudgetCheck    = "budget:check"
-	TypeRecurring      = "recurring:detect"
-	TypeAnalytics      = "analytics:aggregate"
+	TypeOCR                 = "ocr:process"
+	TypeCategorize          = "categorize:expense"
+	TypeTranscription       = "transcription:process"
+	TypeWeeklySummary       = "summary:weekly"
+	TypeMonthlySummary      = "summary:monthly"
+	TypeNotification        = "notification:send"
+	TypeEmail               = "email:send"
+	TypeBudgetCheck         = "budget:check"
+	TypeRecurring           = "recurring:detect"
+	TypeAnalytics           = "analytics:aggregate"
+	TypeWelcomeNotif        = "notification:welcome"
+	TypeBudgetWarningNotif  = "notification:budget_warning"
+	TypeBudgetExceededNotif = "notification:budget_exceeded"
 )
 
 // ─── Payload structs ──────────────────────────────────────────────────────────
@@ -34,6 +37,30 @@ type SummaryPayload      struct{ UserID, Type string }
 type NotificationPayload struct{ UserID, Title, Message, NotifType string }
 type EmailPayload        struct{ To, Subject, Body string }
 type BudgetCheckPayload  struct{ UserID, Category string; Amount float64 }
+
+// WelcomeNotifPayload carries data for the welcome notification worker.
+type WelcomeNotifPayload struct {
+	UserID string
+	Email  string
+	Name   string
+}
+
+// BudgetAlertPayload carries data for budget warning/exceeded notification workers.
+type BudgetAlertPayload struct {
+	UserID       string
+	Email        string
+	Name         string
+	BudgetID     string
+	Category     string
+	BudgetAmount float64
+	Spent        float64
+	Remaining    float64
+	Threshold    float64  // the % threshold that was crossed
+	AlertType    string   // "warning" | "exceeded"
+	Month        int
+	Year         int
+	DaysLeft     int
+}
 
 // ─── Client (producer) ────────────────────────────────────────────────────────
 
@@ -99,6 +126,23 @@ func (c *Client) EnqueueRecurringDetect(ctx context.Context, userID string) erro
 	return c.enqueue(ctx, TypeRecurring, SummaryPayload{UserID: userID, Type: "recurring"})
 }
 
+// EnqueueWelcomeNotif enqueues a welcome notification + email job for a new user.
+func (c *Client) EnqueueWelcomeNotif(ctx context.Context, userID, email, name string) error {
+	return c.enqueue(ctx, TypeWelcomeNotif, WelcomeNotifPayload{UserID: userID, Email: email, Name: name},
+		asynq.MaxRetry(3),
+		asynq.Queue("default"),
+	)
+}
+
+// EnqueueBudgetAlert enqueues a budget warning or exceeded notification+email job.
+func (c *Client) EnqueueBudgetAlert(ctx context.Context, p BudgetAlertPayload) error {
+	taskType := TypeBudgetWarningNotif
+	if p.AlertType == "exceeded" {
+		taskType = TypeBudgetExceededNotif
+	}
+	return c.enqueue(ctx, taskType, p, asynq.MaxRetry(3), asynq.Queue("default"))
+}
+
 // ─── generic enqueue helper ───────────────────────────────────────────────────
 
 func (c *Client) enqueue(ctx context.Context, taskType string, payload interface{}, opts ...asynq.Option) error {
@@ -113,7 +157,11 @@ func (c *Client) enqueue(ctx context.Context, taskType string, payload interface
 	return nil
 }
 
-// ─── Server (consumer) ────────────────────────────────────────────────────────
+// NewWorkerMux creates a new Asynq ServeMux for registering task handlers.
+func NewWorkerMux() *asynq.ServeMux {
+	return asynq.NewServeMux()
+}
+
 
 // ServerConfig holds Asynq server configuration.
 type ServerConfig struct {
