@@ -26,10 +26,32 @@ export const expenseService = {
   list: async (
     filters: ExpenseFilters = {}
   ): Promise<PaginatedResponse<Expense>> => {
-    const res = await api.get<PaginatedResponse<Expense>>(
-      `/expenses${buildQueryString(filters)}`
-    );
-    return res.data;
+    const res = await api.get<{
+      data: Expense[];
+      pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        total_pages: number;
+        has_next: boolean;
+        has_prev: boolean;
+      };
+      // flat shape (legacy / other endpoints)
+      total?: number;
+      total_pages?: number;
+      page?: number;
+      limit?: number;
+    }>(`/expenses${buildQueryString(filters)}`);
+
+    const raw = res.data;
+    const p = raw.pagination;
+    return {
+      data:        raw.data ?? [],
+      total:       p?.total       ?? raw.total       ?? 0,
+      total_pages: p?.total_pages ?? raw.total_pages ?? 1,
+      page:        p?.page        ?? raw.page        ?? 1,
+      limit:       p?.limit       ?? raw.limit       ?? 10,
+    };
   },
 
   // Update an expense

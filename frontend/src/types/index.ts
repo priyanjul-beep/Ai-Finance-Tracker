@@ -359,6 +359,7 @@ export interface Notification {
 // ─── Filters / params ────────────────────────────────────────────────────────
 
 export interface ExpenseFilters {
+  [key: string]: unknown;
   page?: number;
   limit?: number;
   category?: string;
@@ -371,6 +372,7 @@ export interface ExpenseFilters {
 }
 
 export interface IncomeFilters {
+  [key: string]: unknown;
   page?: number;
   limit?: number;
   from?: string;

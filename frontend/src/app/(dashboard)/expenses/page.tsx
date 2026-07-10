@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, ChevronLeft, ChevronRight, Loader2, ChevronsLeft, ChevronsRight } from "lucide-react";
 import Link from "next/link";
 import { useExpenses, useDeleteExpense } from "@/hooks/useExpenses";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -21,16 +21,36 @@ const CATEGORY_COLORS: Record<string, string> = {
   Other: "bg-gray-100 text-gray-700",
 };
 
+const LIMIT = 10;
+
+/** Returns a window of page numbers like [1, 2, '…', 7, 8, 9, '…', 20] */
+function pageWindow(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "…")[] = [1];
+  if (current > 3) pages.push("…");
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push("…");
+  pages.push(total);
+  return pages;
+}
+
 export default function ExpensesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useExpenses({ page, limit: 10, search: search || undefined });
+  const { data, isLoading } = useExpenses({ page, limit: LIMIT, search: search || undefined });
   const { mutate: deleteExpense, isPending: isDeleting } = useDeleteExpense();
 
-  const expenses = data?.data ?? [];
+  const expenses   = data?.data        ?? [];
+  const total      = data?.total       ?? 0;
   const totalPages = data?.total_pages ?? 1;
+
+  // Range label: "1–10 of 47"
+  const rangeStart = total === 0 ? 0 : (page - 1) * LIMIT + 1;
+  const rangeEnd   = Math.min(page * LIMIT, total);
 
   return (
     <div className="space-y-6">
@@ -39,7 +59,7 @@ export default function ExpensesPage() {
         <div>
           <h1 className="text-2xl font-bold">Expenses</h1>
           <p className="text-sm text-muted-foreground">
-            {data?.total ?? 0} total expenses
+            {total} total expenses
           </p>
         </div>
         <Link
@@ -72,10 +92,7 @@ export default function ExpensesPage() {
         ) : expenses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-sm font-medium text-muted-foreground">No expenses found</p>
-            <Link
-              href="/expenses/new"
-              className="mt-3 text-sm font-medium text-primary hover:underline"
-            >
+            <Link href="/expenses/new" className="mt-3 text-sm font-medium text-primary hover:underline">
               Add your first expense →
             </Link>
           </div>
@@ -97,15 +114,9 @@ export default function ExpensesPage() {
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                     {formatDate(new Date(expense.date))}
                   </td>
-                  <td className="px-4 py-3 font-medium">
-                    {expense.merchant || "—"}
-                  </td>
+                  <td className="px-4 py-3 font-medium">{expense.merchant || "—"}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        CATEGORY_COLORS[expense.category] ?? "bg-gray-100 text-gray-700"
-                      }`}
-                    >
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${CATEGORY_COLORS[expense.category] ?? "bg-gray-100 text-gray-700"}`}>
                       {expense.category}
                     </span>
                   </td>
@@ -141,26 +152,76 @@ export default function ExpensesPage() {
         )}
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
+      {/* Pagination — always visible when there is any data */}
+      {total > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm">
+          {/* Range label */}
           <p className="text-muted-foreground">
-            Page {page} of {totalPages}
+            Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of{" "}
+            <span className="font-medium text-foreground">{total}</span> expenses
           </p>
-          <div className="flex gap-2">
+
+          {/* Controls */}
+          <div className="flex items-center gap-1">
+            {/* First page */}
+            <button
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+              aria-label="First page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+
+            {/* Prev */}
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
+              aria-label="Previous page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
+
+            {/* Numbered pages */}
+            {pageWindow(page, totalPages).map((p, i) =>
+              p === "…" ? (
+                <span key={`ellipsis-${i}`} className="flex h-8 w-8 items-center justify-center text-muted-foreground select-none">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg border px-2 transition-colors font-medium ${
+                    p === page
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border hover:bg-muted text-foreground"
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+
+            {/* Next */}
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-colors"
+              aria-label="Next page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="h-4 w-4" />
+            </button>
+
+            {/* Last page */}
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+              aria-label="Last page"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronsRight className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -177,9 +238,7 @@ export default function ExpensesPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-base font-semibold">Delete expense?</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              This action cannot be undone.
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">This action cannot be undone.</p>
             <div className="mt-6 flex gap-3">
               <button
                 onClick={() => setConfirmDeleteId(null)}
@@ -189,11 +248,7 @@ export default function ExpensesPage() {
               </button>
               <button
                 disabled={isDeleting}
-                onClick={() =>
-                  deleteExpense(confirmDeleteId, {
-                    onSuccess: () => setConfirmDeleteId(null),
-                  })
-                }
+                onClick={() => deleteExpense(confirmDeleteId, { onSuccess: () => setConfirmDeleteId(null) })}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60 transition-colors"
               >
                 {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
