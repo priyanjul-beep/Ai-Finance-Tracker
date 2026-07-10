@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hibiken/asynq"
 
 	"github.com/priyanjul/ai-finance-tracker/config"
 	"github.com/priyanjul/ai-finance-tracker/internal/handler"
@@ -107,7 +108,7 @@ func main() {
 
 	// ── Use-cases (application services) ─────────────────────────────────────
 	authUC := usecase.NewAuth(
-		userRepo, sessionRepo, emailSvc,
+		userRepo, sessionRepo, emailSvc, notifRepo,
 		cfg.JWTSecret, cfg.JWTRefreshSecret,
 		cfg.JWTExpiry, cfg.RefreshTokenExpiry,
 		"http://localhost:"+cfg.ServerPort,
@@ -115,7 +116,7 @@ func main() {
 	)
 
 	expenseUC := usecase.NewExpense(
-		expenseRepo, tagRepo, auditRepo, aiProvider, redisCache, queueClient, merchantRepo,
+		expenseRepo, tagRepo, auditRepo, aiProvider, redisCache, queueClient, merchantRepo, notifRepo, budgetRepo, userRepo, emailSvc,
 	)
 
 	analyticsUC := usecase.NewAnalytics(
@@ -123,7 +124,7 @@ func main() {
 	)
 
 	incomeUC := usecase.NewIncome(incomeRepo, auditRepo, redisCache)
-	budgetUC := usecase.NewBudget(budgetRepo, expenseRepo, queueClient, auditRepo)
+	budgetUC := usecase.NewBudget(budgetRepo, expenseRepo, queueClient, auditRepo, notifRepo)
 	subscriptionUC := usecase.NewSubscription(subRepo, auditRepo, redisCache)
 	goalUC := usecase.NewGoal(goalRepo, auditRepo, redisCache)
 	tagUC  := usecase.NewTag(tagRepo)
@@ -140,6 +141,26 @@ func main() {
 	goalH       := handler.NewGoalHandler(goalUC)
 	tagH        := handler.NewTagHandler(tagUC)
 	notifH      := handler.NewNotificationHandler(notifRepo)
+
+	// ── Background workers ────────────────────────────────────────────────────
+	workerServer, err := queue.NewServer(queue.ServerConfig{RedisURL: cfg.RedisURL, Concurrency: 10})
+	if err != nil {
+		appLog.Warn("queue worker server init failed – background jobs disabled", "error", err)
+	} else {
+		mux := asynq.NewServeMux()
+		queue.RegisterWorkers(mux, queue.HandlerDeps{
+			EmailSvc:    emailSvc,
+			NotifRepo:   notifRepo,
+			ExpenseRepo: expenseRepo,
+			BudgetRepo:  budgetRepo,
+		})
+		go func() {
+			if err := workerServer.Run(mux); err != nil {
+				appLog.Error("queue worker stopped", "error", err)
+			}
+		}()
+		defer workerServer.Shutdown()
+	}
 
 	// ── Router ────────────────────────────────────────────────────────────────
 	if cfg.IsProduction() {

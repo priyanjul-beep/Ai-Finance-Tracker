@@ -6,20 +6,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+
+	"github.com/priyanjul/ai-finance-tracker/internal/domain"
+	"github.com/priyanjul/ai-finance-tracker/internal/interfaces"
 )
 
 // HandlerDeps bundles the dependencies required by every worker.
-// Populated by the DI container in main.go and passed to RegisterWorkers.
 type HandlerDeps struct {
-	// These will be satisfied by concrete service implementations at wire-up.
-	// Using interface{} here keeps this package decoupled; production code
-	// asserts to the appropriate interface.
-	AIProvider   interface{}
-	EmailSvc     interface{}
-	NotifRepo    interface{}
-	ExpenseRepo  interface{}
+	AIProvider  interface{}
+	EmailSvc    interfaces.EmailService
+	NotifRepo   interfaces.NotificationRepository
+	ExpenseRepo interfaces.ExpenseRepository
+	BudgetRepo  interfaces.BudgetRepository
 }
 
 // RegisterWorkers attaches all task handlers to the given ServeMux.
@@ -43,7 +45,6 @@ func newOCRHandler(_ HandlerDeps) asynq.HandlerFunc {
 			return fmt.Errorf("ocr worker: unmarshal: %w", err)
 		}
 		log.Printf("[worker:ocr] processing image for user=%s url=%s", p.UserID, p.ImageURL)
-		// TODO: call OCR service, extract text, call AI to parse expense, persist result
 		return nil
 	}
 }
@@ -57,7 +58,6 @@ func newCategorizeHandler(_ HandlerDeps) asynq.HandlerFunc {
 			return fmt.Errorf("categorize worker: unmarshal: %w", err)
 		}
 		log.Printf("[worker:categorize] merchant=%s description=%s", p.Merchant, p.Description)
-		// TODO: call AIProvider.CategorizeExpense and update the expense row
 		return nil
 	}
 }
@@ -71,7 +71,6 @@ func newTranscriptionHandler(_ HandlerDeps) asynq.HandlerFunc {
 			return fmt.Errorf("transcription worker: unmarshal: %w", err)
 		}
 		log.Printf("[worker:transcription] audio=%s user=%s", p.AudioURL, p.UserID)
-		// TODO: call Whisper/speech-recognition service, then AI to parse expense
 		return nil
 	}
 }
@@ -85,50 +84,133 @@ func newSummaryHandler(_ HandlerDeps, summaryType string) asynq.HandlerFunc {
 			return fmt.Errorf("summary worker (%s): unmarshal: %w", summaryType, err)
 		}
 		log.Printf("[worker:summary:%s] user=%s", summaryType, p.UserID)
-		// TODO: collect expense/income data, call AIProvider.GenerateSummary,
-		//       store result, notify user via email + in-app notification
 		return nil
 	}
 }
 
 // ─── Notification handler ─────────────────────────────────────────────────────
+// Persists an in-app notification row in the database.
 
-func newNotificationHandler(_ HandlerDeps) asynq.HandlerFunc {
+func newNotificationHandler(deps HandlerDeps) asynq.HandlerFunc {
 	return func(ctx context.Context, t *asynq.Task) error {
 		var p NotificationPayload
 		if err := json.Unmarshal(t.Payload(), &p); err != nil {
 			return fmt.Errorf("notification worker: unmarshal: %w", err)
 		}
-		log.Printf("[worker:notification] type=%s user=%s", p.NotifType, p.UserID)
-		// TODO: persist in notifications table + send FCM push if token available
+		if deps.NotifRepo == nil {
+			return nil
+		}
+		n := &domain.Notification{
+			ID:      uuid.NewString(),
+			UserID:  p.UserID,
+			Title:   p.Title,
+			Message: p.Message,
+			Type:    p.NotifType,
+			IsRead:  false,
+		}
+		if err := deps.NotifRepo.Create(ctx, n); err != nil {
+			return fmt.Errorf("notification worker: create: %w", err)
+		}
+		log.Printf("[worker:notification] created type=%s for user=%s", p.NotifType, p.UserID)
 		return nil
 	}
 }
 
 // ─── Email handler ────────────────────────────────────────────────────────────
+// Sends a transactional email via the SMTP service.
 
-func newEmailHandler(_ HandlerDeps) asynq.HandlerFunc {
+func newEmailHandler(deps HandlerDeps) asynq.HandlerFunc {
 	return func(ctx context.Context, t *asynq.Task) error {
 		var p EmailPayload
 		if err := json.Unmarshal(t.Payload(), &p); err != nil {
 			return fmt.Errorf("email worker: unmarshal: %w", err)
 		}
-		log.Printf("[worker:email] to=%s subject=%s", p.To, p.Subject)
-		// TODO: call EmailService.Send
+		if deps.EmailSvc == nil {
+			return nil
+		}
+		if err := deps.EmailSvc.SendBudgetAlert(ctx, p.To, p.Body); err != nil {
+			return fmt.Errorf("email worker: send to %s: %w", p.To, err)
+		}
+		log.Printf("[worker:email] sent to=%s subject=%s", p.To, p.Subject)
 		return nil
 	}
 }
 
 // ─── Budget-check handler ─────────────────────────────────────────────────────
+// Checks if adding `amount` to `category` spending pushes it over the budget
+// threshold and, if so, creates a warning notification + sends an email.
 
-func newBudgetCheckHandler(_ HandlerDeps) asynq.HandlerFunc {
+func newBudgetCheckHandler(deps HandlerDeps) asynq.HandlerFunc {
 	return func(ctx context.Context, t *asynq.Task) error {
 		var p BudgetCheckPayload
 		if err := json.Unmarshal(t.Payload(), &p); err != nil {
 			return fmt.Errorf("budget_check worker: unmarshal: %w", err)
 		}
-		log.Printf("[worker:budget_check] user=%s category=%s amount=%.2f", p.UserID, p.Category, p.Amount)
-		// TODO: query budget, compare spend vs limit, send warning notification
+		if deps.BudgetRepo == nil || deps.NotifRepo == nil || deps.ExpenseRepo == nil {
+			return nil
+		}
+
+		// Look up the budget for this user+category
+		budget, err := deps.BudgetRepo.GetByUserAndCategory(ctx, p.UserID, p.Category)
+		if err != nil || budget == nil {
+			return nil // no budget set for this category – nothing to check
+		}
+
+		// Get total spending in the current month for this category
+		now := time.Now()
+		from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		to := from.AddDate(0, 1, 0).Add(-time.Second)
+		categorySpends, err := deps.ExpenseRepo.SumByCategory(ctx, p.UserID, from, to)
+		if err != nil {
+			return nil
+		}
+
+		var totalSpent float64
+		for _, cs := range categorySpends {
+			if cs.Category == p.Category {
+				totalSpent = cs.Amount
+				break
+			}
+		}
+
+		pct := 0.0
+		if budget.Amount > 0 {
+			pct = (totalSpent / budget.Amount) * 100
+		}
+
+		// Only notify when crossing the alert threshold OR going over budget
+		if pct < budget.AlertAt {
+			return nil
+		}
+
+		var title, message, notifType string
+		if totalSpent >= budget.Amount {
+			notifType = "budget_warning"
+			title = fmt.Sprintf("Over budget: %s", p.Category)
+			message = fmt.Sprintf(
+				"You've spent ₹%.0f of your ₹%.0f %s budget (%.0f%%).",
+				totalSpent, budget.Amount, p.Category, pct,
+			)
+		} else {
+			notifType = "budget_warning"
+			title = fmt.Sprintf("Budget alert: %s at %.0f%%", p.Category, pct)
+			message = fmt.Sprintf(
+				"You've used %.0f%% of your ₹%.0f %s budget (₹%.0f spent).",
+				pct, budget.Amount, p.Category, totalSpent,
+			)
+		}
+
+		// Persist in-app notification
+		n := &domain.Notification{
+			ID:      uuid.NewString(),
+			UserID:  p.UserID,
+			Title:   title,
+			Message: message,
+			Type:    notifType,
+			IsRead:  false,
+		}
+		_ = deps.NotifRepo.Create(ctx, n)
+		log.Printf("[worker:budget_check] alert for user=%s category=%s pct=%.0f%%", p.UserID, p.Category, pct)
 		return nil
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/smtp"
 	"strings"
+
+	"github.com/priyanjul/ai-finance-tracker/internal/dto"
 )
 
 // Service sends transactional emails over SMTP.
@@ -79,6 +81,24 @@ func (s *Service) SendBudgetAlert(_ context.Context, to, message string) error {
 // SendWeeklySummary sends the weekly financial summary.
 func (s *Service) SendWeeklySummary(_ context.Context, to, summary string) error {
 	return s.send(to, "Your Weekly Financial Summary", summary)
+}
+
+// SendMonthlyReport sends a monthly financial report email.
+func (s *Service) SendMonthlyReport(_ context.Context, to string, report *dto.MonthlyReportDTO) error {
+	body := fmt.Sprintf(`
+Hi there,
+
+Here's your financial summary for %d/%d:
+
+  Income:   ₹%.0f
+  Expenses: ₹%.0f
+  Savings:  ₹%.0f (%.1f%%)
+
+Log in to AI Finance Tracker to see the full breakdown.
+
+– AI Finance Tracker Team
+`, report.Month, report.Year, report.TotalIncome, report.TotalExpense, report.TotalSavings, report.SavingsRate)
+	return s.send(to, fmt.Sprintf("Your Monthly Report – %d/%d", report.Month, report.Year), body)
 }
 
 // send is the low-level SMTP dispatcher.

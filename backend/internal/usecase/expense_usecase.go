@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -21,6 +23,10 @@ type ExpenseUseCase struct {
 	cache        interfaces.CacheService
 	queue        interfaces.QueueService
 	merchantRepo interfaces.MerchantMappingRepository
+	notifs       interfaces.NotificationRepository
+	budgets      interfaces.BudgetRepository
+	userRepo     interfaces.UserRepository
+	emailSvc     interfaces.EmailService
 }
 
 // NewExpense creates a new ExpenseUseCase.
@@ -32,10 +38,15 @@ func NewExpense(
 	cache interfaces.CacheService,
 	queue interfaces.QueueService,
 	merchantRepo interfaces.MerchantMappingRepository,
+	notifs interfaces.NotificationRepository,
+	budgets interfaces.BudgetRepository,
+	userRepo interfaces.UserRepository,
+	emailSvc interfaces.EmailService,
 ) *ExpenseUseCase {
 	return &ExpenseUseCase{
 		expenses: expenses, tags: tags, auditLogs: auditLogs,
 		ai: ai, cache: cache, queue: queue, merchantRepo: merchantRepo,
+		notifs: notifs, budgets: budgets, userRepo: userRepo, emailSvc: emailSvc,
 	}
 }
 
@@ -89,8 +100,33 @@ func (uc *ExpenseUseCase) Create(ctx context.Context, userID string, req dto.Cre
 		_ = uc.tags.AddToExpense(ctx, tagID, expense.ID)
 	}
 
-	// Enqueue budget overrun check
+	// Enqueue budget overrun check (async, best-effort)
 	_ = uc.queue.EnqueueBudgetCheck(ctx, userID, category, req.Amount)
+
+	// Directly check budget and write notifications to DB (synchronous, reliable)
+	if uc.notifs != nil && uc.budgets != nil {
+		go uc.checkBudgetAndNotify(context.Background(), userID, category)
+	}
+
+	// Large expense notification (direct DB write, no queue dependency)
+	if req.Amount >= 5000 && uc.notifs != nil {
+		msg := fmt.Sprintf("₹%.0f spent at %s has been recorded.", req.Amount, req.Merchant)
+		_ = uc.notifs.Create(ctx, &domain.Notification{
+			ID:      uuid.NewString(),
+			UserID:  userID,
+			Title:   "Large expense recorded",
+			Message: msg,
+			Type:    "large_expense",
+		})
+		if uc.emailSvc != nil && uc.userRepo != nil {
+			if u, err := uc.userRepo.GetByID(ctx, userID); err == nil {
+				go func() {
+					_ = uc.emailSvc.SendBudgetAlert(context.Background(), u.Email,
+						"Large Expense Alert\n\n"+msg)
+				}()
+			}
+		}
+	}
 
 	// Invalidate dashboard cache
 	_ = uc.cache.InvalidateUser(ctx, userID)
@@ -105,6 +141,72 @@ func (uc *ExpenseUseCase) Create(ctx context.Context, userID string, req dto.Cre
 	})
 
 	return mapExpense(expense), nil
+}
+
+// checkBudgetAndNotify checks current month spending against budget and writes
+// a notification directly to the DB if the threshold is crossed.
+func (uc *ExpenseUseCase) checkBudgetAndNotify(ctx context.Context, userID, category string) {
+	budget, err := uc.budgets.GetByUserAndCategory(ctx, userID, category)
+	if err != nil || budget == nil {
+		return
+	}
+
+	now := time.Now()
+	from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	to := from.AddDate(0, 1, 0).Add(-time.Second)
+	categorySpends, err := uc.expenses.SumByCategory(ctx, userID, from, to)
+	if err != nil {
+		return
+	}
+
+	var totalSpent float64
+	for _, cs := range categorySpends {
+		if strings.EqualFold(cs.Category, category) {
+			totalSpent = cs.Amount
+			break
+		}
+	}
+
+	if budget.Amount <= 0 {
+		return
+	}
+	pct := (totalSpent / budget.Amount) * 100
+	if pct < budget.AlertAt {
+		return
+	}
+
+	var title, message, notifType string
+	if totalSpent >= budget.Amount {
+		notifType = "budget_warning"
+		title = fmt.Sprintf("Over budget: %s", category)
+		message = fmt.Sprintf("You've spent ₹%.0f of your ₹%.0f %s budget (%.0f%% used).",
+			totalSpent, budget.Amount, category, pct)
+	} else {
+		notifType = "budget_warning"
+		title = fmt.Sprintf("Budget alert: %s at %.0f%%", category, pct)
+		message = fmt.Sprintf("You've used %.0f%% of your ₹%.0f %s budget (₹%.0f spent).",
+			pct, budget.Amount, category, totalSpent)
+	}
+
+	// Deduplicate: skip if same notification already sent today
+	if exists, _ := uc.notifs.ExistsToday(ctx, userID, notifType, title); exists {
+		return
+	}
+
+	_ = uc.notifs.Create(ctx, &domain.Notification{
+		ID:      uuid.NewString(),
+		UserID:  userID,
+		Title:   title,
+		Message: message,
+		Type:    notifType,
+	})
+
+	// Send email alert
+	if uc.emailSvc != nil && uc.userRepo != nil {
+		if u, err := uc.userRepo.GetByID(ctx, userID); err == nil {
+			_ = uc.emailSvc.SendBudgetAlert(ctx, u.Email, title+"\n\n"+message)
+		}
+	}
 }
 
 // GetByID returns an expense, enforcing ownership.

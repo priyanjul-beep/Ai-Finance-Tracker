@@ -119,6 +119,8 @@ type NotificationRepository interface {
 	MarkAsRead(ctx context.Context, id string) error
 	MarkAllAsRead(ctx context.Context, userID string) error
 	Delete(ctx context.Context, id string) error
+	// ExistsToday returns true if a notification of the same type+title was already created today for the user.
+	ExistsToday(ctx context.Context, userID, notifType, title string) (bool, error)
 }
 
 // AuditLogRepository writes append-only audit records.

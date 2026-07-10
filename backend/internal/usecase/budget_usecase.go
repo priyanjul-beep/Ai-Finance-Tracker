@@ -3,8 +3,11 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/priyanjul/ai-finance-tracker/internal/domain"
 	"github.com/priyanjul/ai-finance-tracker/internal/dto"
@@ -17,6 +20,7 @@ type BudgetUseCase struct {
 	expenses  interfaces.ExpenseRepository
 	queue     interfaces.QueueService
 	auditLogs interfaces.AuditLogRepository
+	notifs    interfaces.NotificationRepository
 }
 
 // NewBudget creates a new BudgetUseCase.
@@ -25,12 +29,14 @@ func NewBudget(
 	expenses interfaces.ExpenseRepository,
 	queue interfaces.QueueService,
 	auditLogs interfaces.AuditLogRepository,
+	notifs interfaces.NotificationRepository,
 ) *BudgetUseCase {
 	return &BudgetUseCase{
 		budgets:   budgets,
 		expenses:  expenses,
 		queue:     queue,
 		auditLogs: auditLogs,
+		notifs:    notifs,
 	}
 }
 
@@ -137,7 +143,42 @@ func (uc *BudgetUseCase) List(ctx context.Context, userID string, year, month in
 		}
 		out = append(out, enriched)
 	}
+
+	// Check alerts for any at/over threshold budgets (deduped per day)
+	if uc.notifs != nil {
+		go uc.checkAlerts(context.Background(), userID, out)
+	}
+
 	return out, nil
+}
+
+// checkAlerts fires budget_warning notifications for budgets at/over threshold.
+func (uc *BudgetUseCase) checkAlerts(ctx context.Context, userID string, budgets []*dto.BudgetStatusDTO) {
+	for _, b := range budgets {
+		if b.Percent < b.AlertAt {
+			continue
+		}
+		var title, message string
+		if b.Spent >= b.Amount {
+			title = fmt.Sprintf("Over budget: %s", b.Category)
+			message = fmt.Sprintf("You've spent ₹%.0f of your ₹%.0f %s budget (%.0f%% used).",
+				b.Spent, b.Amount, b.Category, b.Percent)
+		} else {
+			title = fmt.Sprintf("Budget alert: %s at %.0f%%", b.Category, b.Percent)
+			message = fmt.Sprintf("You've used %.0f%% of your ₹%.0f %s budget (₹%.0f spent).",
+				b.Percent, b.Amount, b.Category, b.Spent)
+		}
+		if exists, _ := uc.notifs.ExistsToday(ctx, userID, "budget_warning", title); exists {
+			continue
+		}
+		_ = uc.notifs.Create(ctx, &domain.Notification{
+			ID:      uuid.NewString(),
+			UserID:  userID,
+			Title:   title,
+			Message: message,
+			Type:    "budget_warning",
+		})
+	}
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -161,7 +202,7 @@ func (uc *BudgetUseCase) enrichWithSpending(ctx context.Context, userID string, 
 	var spent float64
 	if err == nil {
 		for _, cs := range categorySpends {
-			if cs.Category == string(b.Category) {
+			if strings.EqualFold(cs.Category, string(b.Category)) {
 				spent = cs.Amount
 				break
 			}

@@ -287,7 +287,7 @@ func (r *BudgetRepo) GetByUserID(ctx context.Context, userID string) ([]domain.B
 }
 func (r *BudgetRepo) GetByUserAndCategory(ctx context.Context, userID, category string) (*domain.Budget, error) {
 	var b domain.Budget
-	err := r.db.WithContext(ctx).First(&b, "user_id = ? AND category = ? AND is_active = true", userID, category).Error
+	err := r.db.WithContext(ctx).First(&b, "user_id = ? AND LOWER(category) = LOWER(?) AND is_active = true", userID, category).Error
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
 	}
@@ -425,6 +425,14 @@ func (r *NotificationRepo) MarkAllAsRead(ctx context.Context, userID string) err
 }
 func (r *NotificationRepo) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&domain.Notification{}, "id = ?", id).Error
+}
+func (r *NotificationRepo) ExistsToday(ctx context.Context, userID, notifType, title string) (bool, error) {
+	var count int64
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	err := r.db.WithContext(ctx).Model(&domain.Notification{}).
+		Where("user_id = ? AND type = ? AND title = ? AND created_at >= ?", userID, notifType, title, today).
+		Count(&count).Error
+	return count > 0, err
 }
 
 // ─── AuditLog ─────────────────────────────────────────────────────────────────

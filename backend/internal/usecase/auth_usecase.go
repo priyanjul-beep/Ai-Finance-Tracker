@@ -24,6 +24,7 @@ type AuthUseCase struct {
 	users       interfaces.UserRepository
 	sessions    interfaces.SessionRepository
 	emailSvc    *email.Service
+	notifRepo   interfaces.NotificationRepository
 	jwtSecret   string
 	refreshSec  string
 	jwtExpiry   time.Duration
@@ -37,6 +38,7 @@ func NewAuth(
 	users interfaces.UserRepository,
 	sessions interfaces.SessionRepository,
 	emailSvc *email.Service,
+	notifRepo interfaces.NotificationRepository,
 	jwtSecret, refreshSec string,
 	jwtExpiry, refreshExp time.Duration,
 	appBaseURL string,
@@ -50,7 +52,7 @@ func NewAuth(
 		Endpoint:     google.Endpoint,
 	}
 	return &AuthUseCase{
-		users: users, sessions: sessions, emailSvc: emailSvc,
+		users: users, sessions: sessions, emailSvc: emailSvc, notifRepo: notifRepo,
 		jwtSecret: jwtSecret, refreshSec: refreshSec,
 		jwtExpiry: jwtExpiry, refreshExp: refreshExp,
 		appBaseURL: appBaseURL,
@@ -89,11 +91,23 @@ func (uc *AuthUseCase) Signup(ctx context.Context, req dto.SignupRequest) (*dto.
 		return nil, fmt.Errorf("signup: create user: %w", err)
 	}
 
-	// Send verification email asynchronously (best-effort)
+	// Send verification + welcome emails asynchronously (best-effort)
 	link := fmt.Sprintf("%s/api/v1/auth/verify-email/%s", uc.appBaseURL, verifyToken)
 	go func() {
 		_ = uc.emailSvc.SendVerification(context.Background(), user.Email, link)
+		_ = uc.emailSvc.SendWelcome(context.Background(), user.Email, user.Name)
 	}()
+
+	// Welcome in-app notification
+	if uc.notifRepo != nil {
+		_ = uc.notifRepo.Create(ctx, &domain.Notification{
+			ID:      uuid.NewString(),
+			UserID:  user.ID,
+			Title:   "Welcome to AI Finance Tracker! 🎉",
+			Message: fmt.Sprintf("Hi %s! Start by adding your first expense or setting a budget.", user.Name),
+			Type:    "welcome",
+		})
+	}
 
 	return uc.issueTokens(ctx, user)
 }
