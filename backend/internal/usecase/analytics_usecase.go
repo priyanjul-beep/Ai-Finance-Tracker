@@ -3,6 +3,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/priyanjul/ai-finance-tracker/internal/domain"
@@ -265,9 +266,286 @@ func (uc *AnalyticsUseCase) GetInsights(ctx context.Context, userID string) ([]s
 	return insights, nil
 }
 
-// GetFinancialHealthScore retrieves (or computes) the user's health score.
+// GetFinancialHealthScore computes (or refreshes) the user's financial health score
+// from live data, persists it, and returns it.  It never returns all-zeros for
+// an existing user who has financial data.
 func (uc *AnalyticsUseCase) GetFinancialHealthScore(ctx context.Context, userID string) (*domain.FinancialHealthScore, error) {
-	return uc.healthScore.GetByUserID(ctx, userID)
+	// ── 1. Gather real financial data ────────────────────────────────────────
+	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	prevMonthStart := monthStart.AddDate(0, -1, 0)
+	prevMonthEnd := monthStart.Add(-time.Second)
+	yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+
+	totalIncome, _ := uc.incomes.TotalByDateRange(ctx, userID, monthStart, now)
+	totalExpense, _ := uc.expenses.TotalByDateRange(ctx, userID, monthStart, now)
+	prevIncome, _ := uc.incomes.TotalByDateRange(ctx, userID, prevMonthStart, prevMonthEnd)
+	prevExpense, _ := uc.expenses.TotalByDateRange(ctx, userID, prevMonthStart, prevMonthEnd)
+	yearlyIncome, _ := uc.incomes.TotalByDateRange(ctx, userID, yearStart, now)
+
+	budgets, _ := uc.budgets.GetByUserID(ctx, userID)
+	subs, _ := uc.subscriptions.GetByUserID(ctx, userID)
+
+	// ── 2. Compute sub-scores (all 0–100) ───────────────────────────────────
+
+	// Income Score: based on income consistency month-over-month
+	incomeScore := calcIncomeScore(totalIncome, prevIncome, yearlyIncome)
+
+	// Savings Score: savings rate this month
+	savingsScore := calcSavingsScore(totalIncome, totalExpense)
+
+	// Expense Ratio: how much of income is spent (lower = healthier)
+	expenseRatio := calcExpenseRatio(totalIncome, totalExpense)
+
+	// Budget Health: % of active budgets that are on-track
+	budgetHealth := calcBudgetHealth(ctx, uc, userID, budgets, monthStart, now)
+
+	// Subscription Health: subscription spend vs total income
+	subscriptionHealth := calcSubscriptionHealth(totalIncome, subs)
+
+	// Debt Health: placeholder — no debt module yet; use expense vs income trend
+	debtHealth := calcDebtHealth(totalExpense, prevExpense, totalIncome)
+
+	// Overall score: weighted average
+	overallScore := (incomeScore*0.25 +
+		savingsScore*0.30 +
+		(100-expenseRatio)*0.20 +
+		budgetHealth*0.15 +
+		subscriptionHealth*0.05 +
+		debtHealth*0.05)
+
+	// Clamp to [0, 100]
+	overallScore = clamp(overallScore, 0, 100)
+
+	// ── 3. Optionally refine with AI (non-blocking, best-effort) ────────────
+	aiData := map[string]interface{}{
+		"total_income":        totalIncome,
+		"total_expense":       totalExpense,
+		"prev_income":         prevIncome,
+		"prev_expense":        prevExpense,
+		"savings_rate":        savingsRate(totalIncome, totalExpense),
+		"budget_count":        len(budgets),
+		"subscription_count":  len(subs),
+	}
+	if aiScore, err := uc.ai.CalcHealthScore(ctx, aiData); err == nil && aiScore > 0 {
+		// Blend AI score (40%) with our deterministic score (60%)
+		overallScore = clamp(overallScore*0.6+aiScore*0.4, 0, 100)
+	}
+
+	// ── 4. Build insights ───────────────────────────────────────────────────
+	insights := buildInsights(totalIncome, totalExpense, savingsScore, budgetHealth, subscriptionHealth)
+
+	// ── 5. Persist (upsert) ─────────────────────────────────────────────────
+	hs := &domain.FinancialHealthScore{
+		UserID:             userID,
+		Score:              round2(overallScore),
+		IncomeScore:        round2(incomeScore),
+		SavingsScore:       round2(savingsScore),
+		ExpenseRatio:       round2(expenseRatio),
+		BudgetHealth:       round2(budgetHealth),
+		DebtHealth:         round2(debtHealth),
+		SubscriptionHealth: round2(subscriptionHealth),
+	}
+	if len(insights) > 0 {
+		if b, err := marshalInsights(insights); err == nil {
+			hs.Insights = b
+		}
+	}
+
+	// Upsert — if record not found yet we need a fresh ID; GORM Save handles it.
+	existing, _ := uc.healthScore.GetByUserID(ctx, userID)
+	if existing != nil {
+		hs.ID = existing.ID // preserve PK for update
+	}
+	_ = uc.healthScore.Upsert(ctx, hs)
+
+	return hs, nil
+}
+
+// ─── score helper functions ────────────────────────────────────────────────────
+
+func calcIncomeScore(income, prevIncome, yearlyIncome float64) float64 {
+	if income <= 0 && yearlyIncome <= 0 {
+		return 40 // new user – neutral
+	}
+	if income <= 0 {
+		return 20
+	}
+	score := 70.0
+	if prevIncome > 0 {
+		change := (income - prevIncome) / prevIncome
+		switch {
+		case change >= 0.10:
+			score = 95
+		case change >= 0:
+			score = 80
+		case change >= -0.10:
+			score = 65
+		default:
+			score = 45
+		}
+	}
+	return score
+}
+
+func calcSavingsScore(income, expense float64) float64 {
+	if income <= 0 {
+		return 50
+	}
+	rate := savingsRate(income, expense)
+	switch {
+	case rate >= 30:
+		return 100
+	case rate >= 20:
+		return 85
+	case rate >= 10:
+		return 70
+	case rate >= 0:
+		return 50
+	default: // spending more than earning
+		return 10
+	}
+}
+
+func calcExpenseRatio(income, expense float64) float64 {
+	if income <= 0 {
+		return 50
+	}
+	ratio := (expense / income) * 100
+	return clamp(ratio, 0, 100)
+}
+
+func calcBudgetHealth(ctx context.Context, uc *AnalyticsUseCase, userID string, budgets []domain.Budget, from, to time.Time) float64 {
+	active := 0
+	onTrack := 0
+	for _, b := range budgets {
+		if !b.IsActive {
+			continue
+		}
+		active++
+		spends, err := uc.expenses.SumByCategory(ctx, userID, from, to)
+		if err != nil {
+			continue
+		}
+		var spent float64
+		for _, cs := range spends {
+			if cs.Category == string(b.Category) {
+				spent = cs.Amount
+				break
+			}
+		}
+		if b.Amount > 0 && spent/b.Amount < 1.0 {
+			onTrack++
+		}
+	}
+	if active == 0 {
+		return 70 // no budgets set – neutral
+	}
+	return (float64(onTrack) / float64(active)) * 100
+}
+
+func calcSubscriptionHealth(income float64, subs []domain.Subscription) float64 {
+	if income <= 0 {
+		return 80
+	}
+	var monthly float64
+	for _, s := range subs {
+		if !s.IsActive {
+			continue
+		}
+		switch s.BillingCycle {
+		case "monthly":
+			monthly += s.Amount
+		case "yearly":
+			monthly += s.Amount / 12
+		case "weekly":
+			monthly += s.Amount * 4
+		}
+	}
+	ratio := (monthly / income) * 100
+	switch {
+	case ratio <= 5:
+		return 100
+	case ratio <= 10:
+		return 80
+	case ratio <= 20:
+		return 60
+	default:
+		return 30
+	}
+}
+
+func calcDebtHealth(expense, prevExpense, income float64) float64 {
+	if income <= 0 {
+		return 60
+	}
+	// Proxy: expense growth trend vs income
+	if prevExpense <= 0 {
+		return 70
+	}
+	growth := (expense - prevExpense) / prevExpense
+	switch {
+	case growth <= 0:
+		return 90
+	case growth <= 0.05:
+		return 75
+	case growth <= 0.15:
+		return 55
+	default:
+		return 30
+	}
+}
+
+func buildInsights(income, expense, savingsScore, budgetHealth, subscriptionHealth float64) []string {
+	var out []string
+	if income <= 0 {
+		out = append(out, "Add your income sources to get a complete financial picture.")
+	}
+	rate := savingsRate(income, expense)
+	switch {
+	case rate >= 20:
+		out = append(out, "Great job! You're saving more than 20% of your income.")
+	case rate >= 10:
+		out = append(out, "You're saving around 10% of income. Aim for 20% for a stronger safety net.")
+	case rate > 0:
+		out = append(out, "Your savings rate is low. Consider reducing discretionary expenses.")
+	default:
+		out = append(out, "You're spending more than you earn this month. Review your budget immediately.")
+	}
+	if budgetHealth < 50 {
+		out = append(out, "More than half your budgets are over-limit. Set tighter spending controls.")
+	} else if budgetHealth < 80 {
+		out = append(out, "Some budgets are approaching their limits. Monitor spending closely.")
+	}
+	if subscriptionHealth < 60 {
+		out = append(out, "Subscription costs are high relative to your income. Consider cancelling unused services.")
+	}
+	return out
+}
+
+func savingsRate(income, expense float64) float64 {
+	if income <= 0 {
+		return 0
+	}
+	return ((income - expense) / income) * 100
+}
+
+func clamp(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+func round2(v float64) float64 {
+	return float64(int(v*100+0.5)) / 100
+}
+
+func marshalInsights(insights []string) ([]byte, error) {
+	return json.Marshal(insights)
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
