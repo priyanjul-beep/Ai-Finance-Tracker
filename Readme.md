@@ -6,6 +6,18 @@ Track expenses, manage budgets and goals, get real-time AI insights, parse recei
 
 ---
 
+## 🚀 Live Demo
+
+| | URL |
+|---|---|
+| 🌐 **Frontend** | [https://ai-finance-tracker-2-q25a.onrender.com](https://ai-finance-tracker-2-q25a.onrender.com) |
+| ⚙️ **Backend API** | [https://ai-finance-tracker-1-5js1.onrender.com](https://ai-finance-tracker-1-5js1.onrender.com) |
+| 💓 **Health Check** | [https://ai-finance-tracker-1-5js1.onrender.com/api/v1/health](https://ai-finance-tracker-1-5js1.onrender.com/api/v1/health) |
+
+> **Note:** The app is hosted on Render's free tier — the server may take **30–60 seconds to spin up** on the first request after a period of inactivity.
+
+---
+
 ## ✨ Features
 
 | Category | Capabilities |
